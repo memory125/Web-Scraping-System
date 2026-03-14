@@ -2,32 +2,82 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --theme-primary: 99 102 241;
-  --theme-secondary: 129 140 248;
-}
-
-[data-theme="blue"] {
-  --theme-primary: 59 130 246;
-  --theme-secondary: 96 165 250;
-}
-
-[data-theme="emerald"] {
-  --theme-primary: 16 185 129;
-  --theme-secondary: 52 211 153;
-}
-
-[data-theme="amber"] {
-  --theme-primary: 245 158 11;
-  --theme-secondary: 251 191 36;
-}
-
-[data-theme="rose"] {
-  --theme-primary: 244 63 94;
-  --theme-secondary: 251 113 133;
-}
-
-[data-theme="purple"] {
-  --theme-primary: 168 85 247;
-  --theme-secondary: 192 132 252;
+@layer base {
+  :root {
+    --color-indigo-50: 238 242 255;
+    --color-indigo-100: 224 231 255;
+    --color-indigo-200: 199 210 254;
+    --color-indigo-300: 165 180 252;
+    --color-indigo-400: 129 140 248;
+    --color-indigo-500: 99 102 241;
+    --color-indigo-600: 79 70 229;
+    --color-indigo-700: 67 56 202;
+    --color-indigo-800: 55 48 163;
+    --color-indigo-900: 49 46 129;
+  }
+  
+  [data-theme="blue"] {
+    --color-indigo-50: 239 246 255;
+    --color-indigo-100: 219 234 254;
+    --color-indigo-200: 191 219 254;
+    --color-indigo-300: 147 197 253;
+    --color-indigo-400: 96 165 250;
+    --color-indigo-500: 59 130 246;
+    --color-indigo-600: 37 99 235;
+    --color-indigo-700: 29 78 216;
+    --color-indigo-800: 30 64 175;
+    --color-indigo-900: 30 58 138;
+  }
+  
+  [data-theme="emerald"] {
+    --color-indigo-50: 236 253 245;
+    --color-indigo-100: 209 250 229;
+    --color-indigo-200: 167 243 208;
+    --color-indigo-300: 110 231 183;
+    --color-indigo-400: 52 211 153;
+    --color-indigo-500: 16 185 129;
+    --color-indigo-600: 5 150 105;
+    --color-indigo-700: 4 120 87;
+    --color-indigo-800: 6 95 70;
+    --color-indigo-900: 6 78 59;
+  }
+  
+  [data-theme="amber"] {
+    --color-indigo-50: 255 251 235;
+    --color-indigo-100: 254 243 199;
+    --color-indigo-200: 253 230 138;
+    --color-indigo-300: 252 211 77;
+    --color-indigo-400: 251 191 36;
+    --color-indigo-500: 245 158 11;
+    --color-indigo-600: 217 119 6;
+    --color-indigo-700: 180 83 9;
+    --color-indigo-800: 146 64 14;
+    --color-indigo-900: 120 53 15;
+  }
+  
+  [data-theme="rose"] {
+    --color-indigo-50: 255 241 242;
+    --color-indigo-100: 255 228 230;
+    --color-indigo-200: 254 215 215;
+    --color-indigo-300: 253 164 175;
+    --color-indigo-400: 251 113 133;
+    --color-indigo-500: 244 63 94;
+    --color-indigo-600: 225 29 72;
+    --color-indigo-700: 190 18 60;
+    --color-indigo-800: 159 18 58;
+    --color-indigo-900: 134 25 43;
+  }
+  
+  [data-theme="purple"] {
+    --color-indigo-50: 250 245 255;
+    --color-indigo-100: 237 233 254;
+    --color-indigo-200: 221 214 254;
+    --color-indigo-300: 196 181 253;
+    --color-indigo-400: 167 139 250;
+    --color-indigo-500: 139 92 246;
+    --color-indigo-600: 124 58 237;
+    --color-indigo-700: 109 40 217;
+    --color-indigo-800: 91 33 182;
+    --color-indigo-900: 76 29 149;
+  }
 }
