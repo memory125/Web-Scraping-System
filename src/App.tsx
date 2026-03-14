@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState } from './types';
-import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp } from 'lucide-react';
-import { crawlUrl } from './utils/crawler';
+import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers } from 'lucide-react';
+import { crawlUrl, parseSitemap } from './utils/crawler';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -46,6 +46,7 @@ export default function App() {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+  const [themeColor, setThemeColor] = useState(() => localStorage.getItem('themeColor') || 'indigo');
   
   const [newProxy, setNewProxy] = useState('');
   const [showExportOptions, setShowExportOptions] = useState(false);
@@ -56,6 +57,9 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dbReady, setDbReady] = useState(false);
   const [newUrlPriority, setNewUrlPriority] = useState(5);
+  const [showVisualizer, setShowVisualizer] = useState(false);
+  const [sitemapUrl, setSitemapUrl] = useState('');
+  const [isLoadingSitemap, setIsLoadingSitemap] = useState(false);
   
   const crawlingRef = useRef(crawlState);
   crawlingRef.current = crawlState;
@@ -68,6 +72,11 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('themeColor', themeColor);
+    document.documentElement.setAttribute('data-theme', themeColor);
+  }, [themeColor]);
 
   useEffect(() => {
     const init = async () => {
@@ -328,6 +337,35 @@ export default function App() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     downloadBlob(blob, includeContent ? 'crawling-results-full.json' : 'crawling-results.json');
     addLog('success', `Exported ${completed.length} results to JSON`);
+  };
+
+  const handleSitemapParse = async () => {
+    if (!sitemapUrl) return;
+    setIsLoadingSitemap(true);
+    addLog('info', `Parsing sitemap: ${sitemapUrl}`);
+    
+    try {
+      const result = await parseSitemap(sitemapUrl, settings.useProxy);
+      if (result.urls.length > 0) {
+        const newTargets = result.urls.slice(0, 100).map(url => ({
+          id: Math.random().toString(36).substring(7),
+          url,
+          status: 'pending' as const,
+          depth: 0,
+          priority: newUrlPriority,
+        }));
+        
+        setTargets(prev => [...prev, ...newTargets]);
+        addLog('success', `Found ${result.urls.length} URLs, added ${newTargets.length} to queue`);
+      } else {
+        addLog('error', 'No URLs found in sitemap');
+      }
+    } catch (err) {
+      addLog('error', `Sitemap parse failed: ${err}`);
+    } finally {
+      setIsLoadingSitemap(false);
+      setSitemapUrl('');
+    }
   };
 
   const handleAddUrl = (e?: React.FormEvent) => {
@@ -617,6 +655,25 @@ export default function App() {
     progress: targets.length > 0 ? Math.round(((targets.filter(t => t.status === 'completed').length + targets.filter(t => t.status === 'failed').length) / targets.length) * 100) : 0,
   };
 
+  const completedTargets = targets.filter(t => t.status === 'completed');
+  const categoryStats = completedTargets.reduce((acc, t) => {
+    const cat = t.result?.category || 'Other';
+    acc[cat] = (acc[cat] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const sentimentStats = completedTargets.reduce((acc, t) => {
+    const sent = t.result?.sentiment || 'neutral';
+    acc[sent] = (acc[sent] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const avgWordCount = completedTargets.length > 0 
+    ? Math.round(completedTargets.reduce((sum, t) => sum + (t.result?.wordCount || 0), 0) / completedTargets.length)
+    : 0;
+  
+  const totalWords = completedTargets.reduce((sum, t) => sum + (t.result?.wordCount || 0), 0);
+
   const filteredTargets = searchQuery 
     ? targets.filter(t => 
         t.url.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -657,6 +714,21 @@ export default function App() {
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            <button onClick={() => setShowVisualizer(!showVisualizer)} className={`p-2 rounded-lg transition-colors ${showVisualizer ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              <BarChart3 className="w-5 h-5" />
+            </button>
+            <select
+              value={themeColor}
+              onChange={(e) => setThemeColor(e.target.value)}
+              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
+            >
+              <option value="indigo">Indigo</option>
+              <option value="blue">Blue</option>
+              <option value="emerald">Emerald</option>
+              <option value="amber">Amber</option>
+              <option value="rose">Rose</option>
+              <option value="purple">Purple</option>
+            </select>
           </div>
           <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
             <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors border border-slate-300 dark:border-slate-600">
@@ -716,6 +788,60 @@ export default function App() {
                   <span>{stats.scraping} scraping</span>
                   <span>{stats.failed} failed</span>
                 </div>
+              </div>
+            )}
+
+            {showVisualizer && (
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                <h3 className="font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" /> Data Visualization
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Total URLs</div>
+                    <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{stats.total}</div>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Avg Words</div>
+                    <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{avgWordCount}</div>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Total Words</div>
+                    <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{totalWords.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Success Rate</div>
+                    <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</div>
+                  </div>
+                </div>
+                {Object.keys(categoryStats).length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1"><Layers className="w-3 h-3" /> Category Distribution</div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(categoryStats).map(([cat, count]) => (
+                        <span key={cat} className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded text-xs">
+                          {cat}: {count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Object.keys(sentimentStats).length > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1"><Activity className="w-3 h-3" /> Sentiment Analysis</div>
+                    <div className="flex gap-2">
+                      <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded text-xs">
+                        Positive: {sentimentStats.positive || 0}
+                      </span>
+                      <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs">
+                        Neutral: {sentimentStats.neutral || 0}
+                      </span>
+                      <span className="px-2 py-1 bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 rounded text-xs">
+                        Negative: {sentimentStats.negative || 0}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -831,6 +957,22 @@ export default function App() {
                         <Plus className="w-4 h-4" /> Add
                       </button>
                     </form>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="url"
+                        value={sitemapUrl}
+                        onChange={(e) => setSitemapUrl(e.target.value)}
+                        placeholder="Enter website URL to parse sitemap..."
+                        className="flex-1 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSitemapParse(); } }}
+                      />
+                      <button onClick={handleSitemapParse} disabled={isLoadingSitemap} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm inline-flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        {isLoadingSitemap ? 'Parsing...' : 'Parse Sitemap'}
+                      </button>
+                    </div>
                   </div>
                   <div className="flex gap-2 items-center">
                     <div className="flex-1">

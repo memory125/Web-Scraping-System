@@ -1,3 +1,33 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --theme-primary: 99 102 241;
+  --theme-secondary: 129 140 248;
+}
+
+[data-theme="blue"] {
+  --theme-primary: 59 130 246;
+  --theme-secondary: 96 165 250;
+}
+
+[data-theme="emerald"] {
+  --theme-primary: 16 185 129;
+  --theme-secondary: 52 211 153;
+}
+
+[data-theme="amber"] {
+  --theme-primary: 245 158 11;
+  --theme-secondary: 251 191 36;
+}
+
+[data-theme="rose"] {
+  --theme-primary: 244 63 94;
+  --theme-secondary: 251 113 133;
+}
+
+[data-theme="purple"] {
+  --theme-primary: 168 85 247;
+  --theme-secondary: 192 132 252;
+}

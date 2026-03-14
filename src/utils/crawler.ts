@@ -58,6 +58,138 @@ export interface CrawlResult {
   sentiment?: 'positive' | 'negative' | 'neutral';
 }
 
+export interface SitemapResult {
+  urls: string[];
+  error?: string;
+}
+
+export interface FrequencyConfig {
+  baseDelay: number;
+  maxDelay: number;
+  backoffFactor: number;
+  retryAfter429: number;
+}
+
+const DEFAULT_FREQUENCY_CONFIG: FrequencyConfig = {
+  baseDelay: 1000,
+  maxDelay: 30000,
+  backoffFactor: 1.5,
+  retryAfter429: 5000,
+};
+
+let requestHistory: Record<string, { count: number; lastRequest: number; backoffUntil: number }> = {};
+
+function getAdaptiveDelay(url: string, config: FrequencyConfig = DEFAULT_FREQUENCY_CONFIG): number {
+  const now = Date.now();
+  const domain = new URL(url).hostname;
+  
+  if (!requestHistory[domain]) {
+    requestHistory[domain] = { count: 0, lastRequest: 0, backoffUntil: 0 };
+  }
+  
+  const history = requestHistory[domain];
+  
+  if (now < history.backoffUntil) {
+    return history.backoffUntil - now + Math.random() * 1000;
+  }
+  
+  const timeSinceLastRequest = now - history.lastRequest;
+  let delay = config.baseDelay;
+  
+  if (history.count > 10) {
+    delay = Math.min(delay * config.backoffFactor, config.maxDelay);
+  }
+  
+  if (timeSinceLastRequest < 1000) {
+    delay = Math.max(delay, 1000 - timeSinceLastRequest);
+  }
+  
+  history.count++;
+  history.lastRequest = now;
+  
+  return delay + Math.random() * 500;
+}
+
+export function handleRateLimitResponse(url: string, status: number, config: FrequencyConfig = DEFAULT_FREQUENCY_CONFIG): void {
+  const domain = new URL(url).hostname;
+  
+  if (status === 429 || status === 503) {
+    if (requestHistory[domain]) {
+      requestHistory[domain].backoffUntil = Date.now() + config.retryAfter429;
+      requestHistory[domain].count = Math.max(requestHistory[domain].count, 5);
+    }
+  } else if (status >= 200 && status < 300) {
+    if (requestHistory[domain]) {
+      requestHistory[domain].count = Math.max(0, requestHistory[domain].count - 1);
+    }
+  }
+}
+
+export async function parseSitemap(url: string, useProxy: boolean = true): Promise<SitemapResult> {
+  const sitemapUrls = [
+    url.replace(/\/$/, '') + '/sitemap.xml',
+    url.replace(/\/$/, '') + '/sitemap_index.xml',
+    url.replace(/\/$/, '') + '/sitemap-news.xml',
+    url + '/robots.txt',
+  ];
+  
+  const urls: string[] = [];
+  
+  for (const sitemapUrl of sitemapUrls) {
+    try {
+      let fetchUrl = sitemapUrl;
+      if (useProxy) {
+        fetchUrl = DEFAULT_PROXIES[0] + encodeURIComponent(sitemapUrl);
+      }
+      
+      const response = await fetch(fetchUrl, {
+        headers: { 'User-Agent': getRandomUserAgent() },
+      });
+      
+      if (!response.ok) continue;
+      
+      const text = await response.text();
+      
+      if (sitemapUrl.endsWith('robots.txt')) {
+        const sitemapMatches = text.match(/Sitemap:\s*(\S+)/gi);
+        if (sitemapMatches) {
+          for (const match of sitemapMatches) {
+            const sitemapLink = match.replace(/Sitemap:\s*/i, '');
+            const subResult = await parseSitemap(sitemapLink, useProxy);
+            urls.push(...subResult.urls);
+          }
+        }
+        continue;
+      }
+      
+      if (text.includes('<sitemapindex')) {
+        const sitemapMatches = text.match(/<loc>([^<]+)<\/loc>/g);
+        if (sitemapMatches) {
+          for (const match of sitemapMatches) {
+            const sitemapLink = match.replace(/<\/?loc>/g, '');
+            const subResult = await parseSitemap(sitemapLink, useProxy);
+            urls.push(...subResult.urls);
+          }
+        }
+      } else if (text.includes('<urlset')) {
+        const urlMatches = text.match(/<loc>([^<]+)<\/loc>/g);
+        if (urlMatches) {
+          for (const match of urlMatches) {
+            const pageUrl = match.replace(/<\/?loc>/g, '');
+            if (pageUrl.startsWith('http')) {
+              urls.push(pageUrl);
+            }
+          }
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  return { urls: [...new Set(urls)] };
+}
+
 function getRandomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
