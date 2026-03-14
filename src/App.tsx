@@ -1252,10 +1252,10 @@ export default function App() {
                       { key: 'generateSummary', label: language === 'zh' ? '自动摘要' : 'Auto Summary' },
                       { key: 'classifyContent', label: language === 'zh' ? '内容分类' : 'Content Classification' },
                       { key: 'analyzeSentiment', label: language === 'zh' ? '情感分析' : 'Sentiment Analysis' },
-                    ].map(({ key }) => (
+                    ].map(({ key, label }) => (
                       <div key={key} className="flex items-center gap-2">
                         <input type="checkbox" id={key} checked={settings[key as keyof typeof settings] as boolean || false} onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.checked }))} className="rounded" />
-                        <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">{key.replace(/([A-Z])/g, ' ')}</label>
+                        <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">{label}</label>
                       </div>
                     ))}
                   </div>
