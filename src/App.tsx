@@ -814,25 +814,25 @@ export default function App() {
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Total URLs</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{t.totalUrls}</div>
                     <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{stats.total}</div>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Avg Words</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{t.avgWords}</div>
                     <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{avgWordCount}</div>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Total Words</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{t.totalWords}</div>
                     <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{totalWords.toLocaleString()}</div>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Success Rate</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{t.successRate}</div>
                     <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</div>
                   </div>
                 </div>
                 {Object.keys(categoryStats).length > 0 && (
                   <div className="mb-4">
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1"><Layers className="w-3 h-3" /> Category Distribution</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1"><Layers className="w-3 h-3" /> {language === 'zh' ? '分类分布' : 'Category Distribution'}</div>
                     <div className="flex flex-wrap gap-2">
                       {Object.entries(categoryStats).map(([cat, count]) => (
                         <span key={cat} className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded text-xs">
@@ -844,7 +844,7 @@ export default function App() {
                 )}
                 {Object.keys(sentimentStats).length > 0 && (
                   <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1"><Activity className="w-3 h-3" /> Sentiment Analysis</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1"><Activity className="w-3 h-3" /> {t.sentiment}</div>
                     <div className="flex gap-2">
                       <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded text-xs">
                         Positive: {sentimentStats.positive || 0}
