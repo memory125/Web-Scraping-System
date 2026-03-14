@@ -28,6 +28,16 @@ export interface Target {
   parentUrl?: string;
   depth?: number;
   priority?: number;
+  retryCount?: number;
+  lastAttempt?: string;
+}
+
+export interface ResumeToken {
+  targets: Target[];
+  settings: Settings;
+  completedIds: string[];
+  failedIds: string[];
+  timestamp: string;
 }
 
 export interface Settings {
@@ -53,6 +63,8 @@ export interface Settings {
   maxConcurrentRequests?: number;
   followRobotsTxt?: boolean;
   respectNoFollow?: boolean;
+  autoResume?: boolean;
+  maxRetries?: number;
 }
 
 export interface ProxyPool {
@@ -68,16 +80,23 @@ export interface ProxyItem {
   lastUsed?: string;
   successCount: number;
   failCount: number;
+  avgResponseTime?: number;
+  lastCheck?: string;
+  status?: 'active' | 'failed' | 'checking';
 }
 
-export interface LoginConfig {
+export interface Account {
   id: string;
   name: string;
-  url: string;
+  platform: string;
   username: string;
-  password: string;
-  cookieName?: string;
+  cookie?: string;
+  userAgent?: string;
   enabled: boolean;
+  lastUsed?: string;
+  successCount: number;
+  failCount: number;
+  createdAt: string;
 }
 
 export interface CrawlStrategy {
@@ -86,13 +105,25 @@ export interface CrawlStrategy {
   settings: Partial<Settings>;
 }
 
+export interface DownloadTask {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
+  filename?: string;
+  status: 'pending' | 'downloading' | 'completed' | 'failed';
+  progress?: number;
+  error?: string;
+}
+
 export interface AppConfig {
   version: string;
   targets: Target[];
   settings: Settings;
   proxyPools?: ProxyPool[];
-  loginConfigs?: LoginConfig[];
+  accounts?: Account[];
   crawlStrategies?: CrawlStrategy[];
+  downloadTasks?: DownloadTask[];
+  resumeToken?: ResumeToken;
 }
 
 export interface LogEntry {
@@ -125,3 +156,52 @@ export interface ScheduledTask {
 }
 
 export type CrawlState = 'idle' | 'running' | 'paused' | 'finished';
+
+export interface CookieSync {
+  id: string;
+  name: string;
+  domain: string;
+  cookie: string;
+  enabled: boolean;
+  lastSynced?: string;
+  platform: string;
+}
+
+export interface AIAnalysis {
+  id: string;
+  targetId: string;
+  viralElements?: string[];
+  inspiration?: string;
+  createdAt: string;
+}
+
+export interface StorageConfig {
+  id: string;
+  type: 'excel' | 'mysql' | 'json' | 'csv';
+  name: string;
+  enabled: boolean;
+  config: {
+    host?: string;
+    port?: number;
+    database?: string;
+    username?: string;
+    password?: string;
+    tableName?: string;
+    filePath?: string;
+  };
+}
+
+export interface AIModelConfig {
+  id: string;
+  provider: 'openai' | 'anthropic' | 'google' | 'local' | 'custom';
+  name: string;
+  apiKey?: string;
+  endpoint?: string;
+  model: string;
+  enabled: boolean;
+  config: {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+  };
+}

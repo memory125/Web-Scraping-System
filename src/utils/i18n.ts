@@ -73,6 +73,46 @@ export interface Translations {
   cancel: string;
   language: string;
   selectProxy: string;
+  accounts: string;
+  addAccount: string;
+  platform: string;
+  cookies: string;
+  download: string;
+  downloadAll: string;
+  downloadImages: string;
+  downloadVideos: string;
+  saveResume: string;
+  loadResume: string;
+  autoResume: string;
+  maxRetries: string;
+  proxyPool: string;
+  addProxy: string;
+  addCustomProxy: string;
+  cookieSync: string;
+  addCookie: string;
+  syncCookies: string;
+  aiAnalysis: string;
+  viralElements: string;
+  inspiration: string;
+  analyzeContent: string;
+  storage: string;
+  addStorage: string;
+  excelStorage: string;
+  mysqlStorage: string;
+  testConnection: string;
+  aiModel: string;
+  addModel: string;
+  apiKey: string;
+  endpoint: string;
+  model: string;
+  provider: string;
+  temperature: string;
+  maxTokens: string;
+  openai: string;
+  anthropic: string;
+  google: string;
+  local: string;
+  custom: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -149,6 +189,45 @@ export const translations: Record<Language, Translations> = {
     cancel: 'Cancel',
     language: 'Language',
     selectProxy: 'Select Proxy',
+    accounts: 'Accounts',
+    addAccount: 'Add Account',
+    platform: 'Platform',
+    cookies: 'Cookies',
+    download: 'Download',
+    downloadAll: 'Download All',
+    downloadImages: 'Download Images',
+    downloadVideos: 'Download Videos',
+    saveResume: 'Save Resume Point',
+    loadResume: 'Load Resume Point',
+    autoResume: 'Auto Resume',
+    maxRetries: 'Max Retries',
+    proxyPool: 'Proxy Pool',
+    addCustomProxy: 'Add Proxy',
+    cookieSync: 'Cookie Sync',
+    addCookie: 'Add Cookie',
+    syncCookies: 'Sync from Chrome',
+    aiAnalysis: 'AI Analysis',
+    viralElements: 'Viral Elements',
+    inspiration: 'Inspiration',
+    analyzeContent: 'Analyze Content',
+    storage: 'Storage',
+    addStorage: 'Add Storage',
+    excelStorage: 'Excel',
+    mysqlStorage: 'MySQL',
+    testConnection: 'Test Connection',
+    aiModel: 'AI Model',
+    addModel: 'Add Model',
+    apiKey: 'API Key',
+    endpoint: 'Endpoint',
+    model: 'Model',
+    provider: 'Provider',
+    temperature: 'Temperature',
+    maxTokens: 'Max Tokens',
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    google: 'Google',
+    local: 'Local',
+    custom: 'Custom',
   },
   zh: {
     title: '爬虫控制器',
@@ -223,6 +302,45 @@ export const translations: Record<Language, Translations> = {
     cancel: '取消',
     language: '语言',
     selectProxy: '选择代理',
+    accounts: '账号管理',
+    addAccount: '添加账号',
+    platform: '平台',
+    cookies: 'Cookies',
+    download: '下载',
+    downloadAll: '批量下载',
+    downloadImages: '下载图片',
+    downloadVideos: '下载视频',
+    saveResume: '保存断点',
+    loadResume: '加载断点',
+    autoResume: '自动恢复',
+    maxRetries: '最大重试',
+    proxyPool: '代理池',
+    addCustomProxy: '添加代理',
+    cookieSync: 'Cookie同步',
+    addCookie: '添加Cookie',
+    syncCookies: '从Chrome同步',
+    aiAnalysis: 'AI内容分析',
+    viralElements: '爆款元素',
+    inspiration: '创作灵感',
+    analyzeContent: '分析内容',
+    storage: '数据存储',
+    addStorage: '添加存储',
+    excelStorage: 'Excel',
+    mysqlStorage: 'MySQL',
+    testConnection: '测试连接',
+    aiModel: 'AI模型',
+    addModel: '添加模型',
+    apiKey: 'API密钥',
+    endpoint: '接口地址',
+    model: '模型',
+    provider: '提供商',
+    temperature: '温度',
+    maxTokens: '最大令牌',
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    google: 'Google',
+    local: '本地',
+    custom: '自定义',
   },
 };
 

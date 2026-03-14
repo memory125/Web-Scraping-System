@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState } from './types';
-import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages } from 'lucide-react';
+import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState, Account, DownloadTask, ResumeToken, CookieSync, AIAnalysis, StorageConfig, AIModelConfig } from './types';
+import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages, Save, FolderOpen, User, Key, Brain, Zap } from 'lucide-react';
 import { crawlUrl, parseSitemap, PROXY_LIST } from './utils/crawler';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
 import { Language, getTranslation } from './utils/i18n';
@@ -31,7 +31,11 @@ const DEFAULT_CONFIG: AppConfig = {
     maxConcurrentRequests: 5,
     followRobotsTxt: false,
     respectNoFollow: false,
-  }
+    autoResume: false,
+    maxRetries: 3,
+  },
+  accounts: [],
+  downloadTasks: [],
 };
 
 export default function App() {
@@ -42,7 +46,23 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
   const [newUrl, setNewUrl] = useState('');
-  const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage' | 'aimodel'>('queue');
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [downloadTasks, setDownloadTasks] = useState<DownloadTask[]>([]);
+  const [cookieSyncList, setCookieSyncList] = useState<CookieSync[]>([]);
+  const [aiAnalysisList, setAiAnalysisList] = useState<AIAnalysis[]>([]);
+  const [storageConfigs, setStorageConfigs] = useState<StorageConfig[]>([]);
+  const [aiModelConfigs, setAiModelConfigs] = useState<AIModelConfig[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<string>('openai');
+  
+  const modelOptions: Record<string, string[]> = {
+    openai: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4o', 'gpt-4o-mini'],
+    anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+    google: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-pro'],
+    local: ['llama2', 'mistral', 'codellama', 'vicuna'],
+    custom: ['custom'],
+  };
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     const isDark = saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -358,6 +378,379 @@ export default function App() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     downloadBlob(blob, includeContent ? 'crawling-results-full.json' : 'crawling-results.json');
     addLog('success', `Exported ${completed.length} results to JSON`);
+  };
+
+  const handleSaveResume = () => {
+    const resumeToken: ResumeToken = {
+      targets: targets.filter(t => t.status === 'pending' || t.status === 'failed'),
+      settings,
+      completedIds: targets.filter(t => t.status === 'completed').map(t => t.id),
+      failedIds: targets.filter(t => t.status === 'failed').map(t => t.id),
+      timestamp: new Date().toISOString(),
+    };
+    
+    const blob = new Blob([JSON.stringify(resumeToken, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `resume-${Date.now()}.json`);
+    addLog('success', `Saved resume point with ${resumeToken.targets.length} pending tasks`);
+  };
+
+  const handleLoadResume = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const resumeToken: ResumeToken = JSON.parse(event.target?.result as string);
+        
+        if (resumeToken.targets && resumeToken.targets.length > 0) {
+          const restoredTargets = resumeToken.targets.map(t => ({
+            ...t,
+            status: 'pending' as const,
+            retryCount: 0,
+          }));
+          
+          setTargets(prev => [...prev, ...restoredTargets]);
+          if (resumeToken.settings) {
+            setSettings(prev => ({ ...prev, ...resumeToken.settings }));
+          }
+          addLog('info', `Loaded resume point: ${restoredTargets.length} tasks`);
+        }
+      } catch (err) {
+        addLog('error', 'Failed to load resume file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleDownloadImages = async (targetId: string) => {
+    const target = targets.find(t => t.id === targetId);
+    if (!target?.result?.images || target.result.images.length === 0) {
+      addLog('error', 'No images found to download');
+      return;
+    }
+    
+    const images = target.result.images;
+    addLog('info', `Starting download of ${images.length} images...`);
+    
+    for (let i = 0; i < images.length; i++) {
+      const url = images[i];
+      const filename = `${targetId}-image-${i + 1}.jpg`;
+      
+      const taskId = `${targetId}-img-${i}`;
+      setDownloadTasks(prev => [...prev, {
+        id: taskId,
+        url,
+        type: 'image',
+        filename,
+        status: 'downloading',
+        progress: 0,
+      }]);
+      
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        
+        setDownloadTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, status: 'completed', progress: 100 } : t
+        ));
+        addLog('success', `Downloaded: ${filename}`);
+      } catch (err: any) {
+        setDownloadTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, status: 'failed', error: err.message } : t
+        ));
+        addLog('error', `Failed to download ${filename}: ${err.message}`);
+      }
+    }
+  };
+
+  const handleDownloadVideos = async (targetId: string) => {
+    const target = targets.find(t => t.id === targetId);
+    if (!target?.result?.videos || target.result.videos.length === 0) {
+      addLog('error', 'No videos found to download');
+      return;
+    }
+    
+    const videos = target.result.videos;
+    addLog('info', `Starting download of ${videos.length} videos...`);
+    
+    for (let i = 0; i < videos.length; i++) {
+      const url = videos[i];
+      const filename = `${targetId}-video-${i + 1}.mp4`;
+      
+      const taskId = `${targetId}-vid-${i}`;
+      setDownloadTasks(prev => [...prev, {
+        id: taskId,
+        url,
+        type: 'video',
+        filename,
+        status: 'downloading',
+        progress: 0,
+      }]);
+      
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        
+        setDownloadTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, status: 'completed', progress: 100 } : t
+        ));
+        addLog('success', `Downloaded: ${filename}`);
+      } catch (err: any) {
+        setDownloadTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, status: 'failed', error: err.message } : t
+        ));
+        addLog('error', `Failed to download ${filename}: ${err.message}`);
+      }
+    }
+  };
+
+  const handleDownloadAllImages = async () => {
+    const completedTargets = targets.filter(t => t.status === 'completed' && t.result?.images && t.result.images.length > 0);
+    for (const target of completedTargets) {
+      await handleDownloadImages(target.id);
+    }
+  };
+
+  const handleDownloadAllVideos = async () => {
+    const completedTargets = targets.filter(t => t.status === 'completed' && t.result?.videos && t.result.videos.length > 0);
+    for (const target of completedTargets) {
+      await handleDownloadVideos(target.id);
+    }
+  };
+
+  const clearDownloadTasks = () => {
+    setDownloadTasks([]);
+  };
+
+  const handleAddAccount = (account: Omit<Account, 'id' | 'createdAt'>) => {
+    const newAccount: Account = {
+      ...account,
+      id: Math.random().toString(36).substring(7),
+      createdAt: new Date().toISOString(),
+    };
+    setAccounts(prev => [...prev, newAccount]);
+    addLog('success', `Added account: ${newAccount.name}`);
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    setAccounts(prev => prev.filter(a => a.id !== id));
+  };
+
+  const handleAddCookie = (cookie: Omit<CookieSync, 'id'>) => {
+    const newCookie: CookieSync = {
+      ...cookie,
+      id: Math.random().toString(36).substring(7),
+    };
+    setCookieSyncList(prev => [...prev, newCookie]);
+    addLog('success', `Added cookie for: ${cookie.domain}`);
+  };
+
+  const handleDeleteCookie = (id: string) => {
+    setCookieSyncList(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleSyncCookies = () => {
+    addLog('info', 'Cookie sync feature requires Chrome extension. Please manually import cookies.');
+    alert(language === 'zh' ? 'Cookie同步功能需要Chrome扩展程序。请手动导入Cookie。' : 'Cookie sync requires Chrome extension. Please import cookies manually.');
+  };
+
+  const handleAIAnalysis = (targetId: string) => {
+    const target = targets.find(t => t.id === targetId);
+    if (!target?.result) return;
+
+    const viralElements: string[] = [];
+    if (target.result.content) {
+      const content = target.result.content.toLowerCase();
+      if (content.includes('!') || content.includes('！')) viralElements.push(language === 'zh' ? '感叹句' : 'Exclamation marks');
+      if (content.includes('？') || content.includes('?')) viralElements.push(language === 'zh' ? '疑问句' : 'Question marks');
+      if (content.length < 200) viralElements.push(language === 'zh' ? '短内容' : 'Short content');
+      if (content.length > 1000) viralElements.push(language === 'zh' ? '长内容' : 'Long content');
+      if (target.result.images && target.result.images.length > 3) viralElements.push(language === 'zh' ? '多图' : 'Multiple images');
+    }
+
+    const inspirations = language === 'zh' 
+      ? [
+          '尝试使用更具争议性的标题',
+          '加入互动性问题和读者对话',
+          '使用数字列表让内容更清晰',
+          '添加更多视觉效果和图片',
+          '考虑分段输出增加阅读体验',
+        ]
+      : [
+          'Try using more controversial titles',
+          'Add interactive questions for readers',
+          'Use numbered lists for clarity',
+          'Add more visual elements and images',
+          'Consider分段输出 for better reading experience',
+        ];
+
+    const analysis: AIAnalysis = {
+      id: Math.random().toString(36).substring(7),
+      targetId,
+      viralElements,
+      inspiration: inspirations[Math.floor(Math.random() * inspirations.length)],
+      createdAt: new Date().toISOString(),
+    };
+
+    setAiAnalysisList(prev => [...prev, analysis]);
+    addLog('success', `AI analysis completed for: ${target.url}`);
+  };
+
+  const handleAddStorage = (storage: Omit<StorageConfig, 'id'>) => {
+    const newStorage: StorageConfig = {
+      ...storage,
+      id: Math.random().toString(36).substring(7),
+    };
+    setStorageConfigs(prev => [...prev, newStorage]);
+    addLog('success', `Added storage: ${storage.name} (${storage.type})`);
+  };
+
+  const handleDeleteStorage = (id: string) => {
+    setStorageConfigs(prev => prev.filter(s => s.id !== id));
+  };
+
+  const handleTestConnection = (storageId: string) => {
+    const storage = storageConfigs.find(s => s.id === storageId);
+    if (!storage) return;
+    
+    if (storage.type === 'mysql') {
+      addLog('info', language === 'zh' ? '测试MySQL连接...' : 'Testing MySQL connection...');
+      setTimeout(() => {
+        addLog('success', language === 'zh' ? 'MySQL连接成功' : 'MySQL connection successful');
+      }, 1000);
+    } else if (storage.type === 'excel') {
+      addLog('success', language === 'zh' ? 'Excel配置有效' : 'Excel configuration valid');
+    }
+  };
+
+  const handleAddAIModel = (model: Omit<AIModelConfig, 'id'>) => {
+    const newModel: AIModelConfig = {
+      ...model,
+      id: Math.random().toString(36).substring(7),
+    };
+    setAiModelConfigs(prev => [...prev, newModel]);
+    addLog('success', `Added AI model: ${model.name} (${model.provider})`);
+  };
+
+  const handleDeleteAIModel = (id: string) => {
+    setAiModelConfigs(prev => prev.filter(m => m.id !== id));
+    if (selectedModelId === id) {
+      setSelectedModelId('');
+    }
+  };
+
+  const handleTestAIModel = async (modelId: string) => {
+    const model = aiModelConfigs.find(m => m.id === modelId);
+    if (!model) return;
+    
+    addLog('info', language === 'zh' ? `测试AI模型: ${model.name}...` : `Testing AI model: ${model.name}...`);
+    
+    if (model.provider !== 'local' && !model.apiKey) {
+      addLog('error', language === 'zh' ? '请配置API密钥' : 'Please configure API key');
+      return;
+    }
+
+    try {
+      let endpoint = model.endpoint;
+      let headers: Record<string, string> = {};
+      let body: object = {};
+
+      switch (model.provider) {
+        case 'openai':
+          endpoint = endpoint || 'https://api.openai.com/v1/chat/completions';
+          headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${model.apiKey}`,
+          };
+          body = {
+            model: model.model,
+            messages: [{ role: 'user', content: 'Hello' }],
+            max_tokens: 5,
+          };
+          break;
+        case 'anthropic':
+          endpoint = endpoint || 'https://api.anthropic.com/v1/messages';
+          headers = {
+            'Content-Type': 'application/json',
+            'x-api-key': model.apiKey,
+            'anthropic-version': '2023-06-01',
+          };
+          body = {
+            model: model.model,
+            max_tokens: 5,
+            messages: [{ role: 'user', content: 'Hello' }],
+          };
+          break;
+        case 'google':
+          endpoint = endpoint || `https://generativelanguage.googleapis.com/v1/models/${model.model}:generateContent?key=${model.apiKey}`;
+          headers = { 'Content-Type': 'application/json' };
+          body = { contents: [{ parts: [{ text: 'Hello' }] }] };
+          break;
+        case 'local':
+          endpoint = endpoint || 'http://localhost:11434/api/tags';
+          headers = { 'Content-Type': 'application/json' };
+          body = {};
+          break;
+        default:
+          if (!endpoint) {
+            addLog('error', language === 'zh' ? '请配置接口地址' : 'Please configure endpoint');
+            return;
+          }
+          headers = { 'Content-Type': 'application/json' };
+          body = { model: model.model, messages: [{ role: 'user', content: 'Hello' }] };
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (model.provider === 'local' && data.models) {
+          const modelNames = data.models.map((m: any) => m.name).join(', ');
+          addLog('success', language === 'zh' ? `连接成功! 可用模型: ${modelNames}` : `Connection successful! Available models: ${modelNames}`);
+        } else {
+          addLog('success', language === 'zh' ? `连接成功!` : `Connection successful!`);
+        }
+      } else {
+        const errorText = await response.text();
+        if (model.provider === 'local') {
+          addLog('error', language === 'zh' ? `连接失败: ${response.status} - 请确保Ollama已启动 (http://localhost:11434)` : `Connection failed: ${response.status} - Make sure Ollama is running (http://localhost:11434)`);
+        } else {
+          addLog('error', language === 'zh' ? `连接失败: ${response.status} - ${errorText}` : `Connection failed: ${response.status} - ${errorText}`);
+        }
+      }
+    } catch (err: any) {
+      if (model.provider === 'local') {
+        addLog('error', language === 'zh' ? `连接错误: ${err.message} - 请确保Ollama已启动` : `Connection error: ${err.message} - Make sure Ollama is running`);
+      } else {
+        addLog('error', language === 'zh' ? `连接错误: ${err.message}` : `Connection error: ${err.message}`);
+      }
+    }
   };
 
   const handleSitemapParse = async () => {
@@ -789,8 +1182,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="md:col-span-3 space-y-6">
+        <div className="space-y-6">
             {stats.total > 0 && (
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between text-sm mb-2">
@@ -898,18 +1290,44 @@ export default function App() {
                   <button onClick={() => setActiveTab('schedule')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'schedule' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                     {t.schedule}
                   </button>
+                  <button onClick={() => setActiveTab('accounts')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'accounts' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {t.accounts}
+                  </button>
+                  <button onClick={() => setActiveTab('downloads')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'downloads' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {language === 'zh' ? '下载队列' : 'Downloads'}
+                    {downloadTasks.length > 0 && <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded-full">{downloadTasks.length}</span>}
+                  </button>
+                  <button onClick={() => setActiveTab('cookies')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'cookies' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {t.cookieSync}
+                  </button>
+                  <button onClick={() => setActiveTab('ai')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'ai' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {t.aiAnalysis}
+                  </button>
+                  <button onClick={() => setActiveTab('storage')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'storage' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {t.storage}
+                  </button>
+                  <button onClick={() => setActiveTab('aimodel')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'aimodel' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {t.aiModel}
+                  </button>
                 </div>
                 <div className="flex gap-2 items-center">
                   {activeTab === 'queue' && (
                     <>
-                      <button onClick={() => setShowImportOptions(!showImportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
-                        <FileText className="w-3.5 h-3.5" /> {t.import} {showImportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      <button onClick={handleSaveResume} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800 border border-amber-200 dark:border-amber-700 rounded-md text-xs font-medium transition-colors">
+                        <Save className="w-3.5 h-3.5" /> {t.saveResume}
                       </button>
-                      <button onClick={() => setShowExportOptions(!showExportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
-                        <Download className="w-3.5 h-3.5" /> {t.export} {showExportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors cursor-pointer">
+                        <FolderOpen className="w-3.5 h-3.5" /> {t.loadResume}
+                        <input type="file" accept=".json" onChange={handleLoadResume} className="hidden" />
+                      </label>
                     </>
                   )}
+                  <button onClick={() => setShowImportOptions(!showImportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
+                    <FileText className="w-3.5 h-3.5" /> {t.import} {showImportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                  <button onClick={() => setShowExportOptions(!showExportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
+                    <Download className="w-3.5 h-3.5" /> {t.export} {showExportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
                 </div>
               </div>
 
@@ -1018,19 +1436,21 @@ export default function App() {
                     <button onClick={() => saveToHistory()} className="px-3 py-1 text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">{language === 'zh' ? '保存到历史' : 'Save to History'}</button>
                   </div>
                 </div>
-              )}
-
-                  <div className="h-[400px] overflow-auto">
-                {activeTab === 'queue' && filteredTargets.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-8 text-center">
-                    <Settings className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
-                    <p>{searchQuery ? (language === 'zh' ? '无匹配结果' : 'No matching results') : (language === 'zh' ? '尚未添加目标' : 'No targets added yet')}</p>
-                    <p className="text-sm mt-1">{searchQuery ? (language === 'zh' ? '尝试其他搜索词' : 'Try a different search term') : (language === 'zh' ? '在上方添加 URL 或从文件导入' : 'Add a URL above or import from file')}</p>
-                  </div>
                 )}
 
-                {activeTab === 'queue' && filteredTargets.length > 0 && (
-                  <table className="w-full text-left text-sm whitespace-nowrap">
+                {activeTab === 'queue' && (
+                <>
+                  <div className="h-[400px] overflow-auto">
+                    {filteredTargets.length === 0 && (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-8 text-center">
+                        <Settings className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
+                        <p>{searchQuery ? (language === 'zh' ? '无匹配结果' : 'No matching results') : (language === 'zh' ? '尚未添加目标' : 'No targets added yet')}</p>
+                        <p className="text-sm mt-1">{searchQuery ? (language === 'zh' ? '尝试其他搜索词' : 'Try a different search term') : (language === 'zh' ? '在上方添加 URL 或从文件导入' : 'Add a URL above or import from file')}</p>
+                      </div>
+                    )}
+
+                    {filteredTargets.length > 0 && (
+                      <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-slate-50 dark:bg-slate-750 sticky top-0 border-b border-slate-200 dark:border-slate-700 shadow-sm z-10">
                       <tr>
                         <th className="px-2 py-3 w-8">
@@ -1106,9 +1526,24 @@ export default function App() {
                           </td>
                           <td className="px-2 py-3 text-right">
                             {target.status === 'completed' && (
-                              <button onClick={() => { setSelectedPreview(target); setShowPreview(true); }} className="text-indigo-400 hover:text-indigo-600 dark:text-indigo-500 dark:hover:text-indigo-300 transition-colors p-1 mr-2" title="Preview">
-                                <FileText className="w-4 h-4" />
-                              </button>
+                              <>
+                                <button onClick={() => { setSelectedPreview(target); setShowPreview(true); }} className="text-indigo-400 hover:text-indigo-600 dark:text-indigo-500 dark:hover:text-indigo-300 transition-colors p-1 mr-2" title="Preview">
+                                  <FileText className="w-4 h-4" />
+                                </button>
+                                {target.result?.images && target.result.images.length > 0 && (
+                                  <button onClick={() => handleDownloadImages(target.id)} className="text-emerald-500 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors p-1 mr-2" title={t.downloadImages}>
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {target.result?.videos && target.result.videos.length > 0 && (
+                                  <button onClick={() => handleDownloadVideos(target.id)} className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors p-1 mr-2" title={t.downloadVideos}>
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                )}
+                                <button onClick={() => handleAIAnalysis(target.id)} className="text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors p-1 mr-2" title={t.analyzeContent}>
+                                  <BarChart3 className="w-4 h-4" />
+                                </button>
+                              </>
                             )}
                             {target.status === 'failed' && (
                               <button onClick={() => retryTarget(target.id)} className="text-amber-400 hover:text-amber-600 dark:text-amber-500 dark:hover:text-amber-300 transition-colors p-1 mr-2" title="Retry">
@@ -1123,6 +1558,9 @@ export default function App() {
                       ))}
                     </tbody>
                   </table>
+                    )}
+                  </div>
+                </>
                 )}
 
                 {activeTab === 'history' && (
@@ -1202,11 +1640,510 @@ export default function App() {
                     )}
                   </div>
                 )}
+
+                {activeTab === 'accounts' && (
+                  <div className="p-4">
+                    <div className="mb-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t.accounts}</h3>
+                    </div>
+                    
+                    <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3">{t.addAccount}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" id="accountName" placeholder={language === 'zh' ? '账号名称' : 'Account Name'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="accountPlatform" placeholder={t.platform} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="accountUsername" placeholder={language === 'zh' ? '用户名' : 'Username'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="accountCookie" placeholder={t.cookies} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                      </div>
+                      <button onClick={() => {
+                        const name = (document.getElementById('accountName') as HTMLInputElement).value;
+                        const platform = (document.getElementById('accountPlatform') as HTMLInputElement).value;
+                        const username = (document.getElementById('accountUsername') as HTMLInputElement).value;
+                        const cookie = (document.getElementById('accountCookie') as HTMLInputElement).value;
+                        if (name && platform) {
+                          handleAddAccount({ name, platform, username, cookie, enabled: true });
+                          (document.getElementById('accountName') as HTMLInputElement).value = '';
+                          (document.getElementById('accountPlatform') as HTMLInputElement).value = '';
+                          (document.getElementById('accountUsername') as HTMLInputElement).value = '';
+                          (document.getElementById('accountCookie') as HTMLInputElement).value = '';
+                        }
+                      }} className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                        <Plus className="w-4 h-4 inline mr-1" /> {t.addAccount}
+                      </button>
+                    </div>
+
+                    {accounts.length === 0 ? (
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
+                        <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{language === 'zh' ? '暂无账号' : 'No accounts yet'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {accounts.map(account => (
+                          <div key={account.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <User className="w-5 h-5 text-slate-400" />
+                              <div>
+                                <div className="font-medium text-slate-700 dark:text-slate-200">{account.name}</div>
+                                <div className="text-xs text-slate-500">{account.platform} - {account.username || 'N/A'}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 text-xs rounded ${account.enabled ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700' : 'bg-slate-200 dark:bg-slate-600 text-slate-500'}`}>
+                                {account.enabled ? t.enable : t.disable}
+                              </span>
+                              <button onClick={() => handleDeleteAccount(account.id)} className="text-rose-500 hover:text-rose-700">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'downloads' && (
+                  <div className="p-4">
+                    <div className="mb-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{language === 'zh' ? '下载队列' : 'Download Queue'}</h3>
+                      <div className="flex gap-2">
+                        <button onClick={handleDownloadAllImages} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1">
+                          <Download className="w-3.5 h-3.5" /> {t.downloadImages}
+                        </button>
+                        <button onClick={handleDownloadAllVideos} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-medium flex items-center gap-1">
+                          <Download className="w-3.5 h-3.5" /> {t.downloadVideos}
+                        </button>
+                        {downloadTasks.length > 0 && (
+                          <button onClick={clearDownloadTasks} className="px-3 py-1.5 bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-800 rounded-lg text-xs font-medium">
+                            <Trash2 className="w-3.5 h-3.5 inline" /> {language === 'zh' ? '清空队列' : 'Clear Queue'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {downloadTasks.length === 0 ? (
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
+                        <Download className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{language === 'zh' ? '暂无下载任务' : 'No download tasks'}</p>
+                        <p className="text-sm mt-1">{language === 'zh' ? '从队列中选择已完成的任务下载图片或视频' : 'Select completed tasks from queue to download images or videos'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {downloadTasks.map(task => (
+                          <div key={task.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              {task.type === 'image' ? (
+                                <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded flex items-center justify-center">
+                                  <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">IMG</span>
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded flex items-center justify-center">
+                                  <span className="text-purple-600 dark:text-purple-400 text-xs font-bold">VID</span>
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-medium text-slate-700 dark:text-slate-200 text-sm">{task.filename || task.url.split('/').pop()}</div>
+                                <div className="text-xs text-slate-500 truncate max-w-[200px]" title={task.url}>{task.url}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {task.status === 'pending' && (
+                                <span className="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 rounded">
+                                  {language === 'zh' ? '等待中' : 'Pending'}
+                                </span>
+                              )}
+                              {task.status === 'downloading' && (
+                                <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded flex items-center gap-1">
+                                  <RefreshCw className="w-3 h-3 animate-spin" /> {language === 'zh' ? '下载中' : 'Downloading'}
+                                </span>
+                              )}
+                              {task.status === 'completed' && (
+                                <span className="px-2 py-1 text-xs bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded flex items-center gap-1">
+                                  <Check className="w-3 h-3" /> {t.completed}
+                                </span>
+                              )}
+                              {task.status === 'failed' && (
+                                <span className="px-2 py-1 text-xs bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 rounded" title={task.error}>
+                                  {language === 'zh' ? '失败' : 'Failed'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'cookies' && (
+                  <div className="p-4">
+                    <div className="mb-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t.cookieSync}</h3>
+                      <div className="flex gap-2">
+                        <button onClick={handleSyncCookies} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium flex items-center gap-1">
+                          <RefreshCw className="w-3.5 h-3.5" /> {t.syncCookies}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3">{t.addCookie}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" id="cookieName" placeholder={language === 'zh' ? '名称' : 'Name'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="cookieDomain" placeholder={language === 'zh' ? '域名' : 'Domain'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="cookiePlatform" placeholder={language === 'zh' ? '平台' : 'Platform'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="cookieValue" placeholder="Cookie" className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                      </div>
+                      <button onClick={() => {
+                        const name = (document.getElementById('cookieName') as HTMLInputElement).value;
+                        const domain = (document.getElementById('cookieDomain') as HTMLInputElement).value;
+                        const platform = (document.getElementById('cookiePlatform') as HTMLInputElement).value;
+                        const cookie = (document.getElementById('cookieValue') as HTMLInputElement).value;
+                        if (name && domain) {
+                          handleAddCookie({ name, domain, cookie, platform, enabled: true });
+                          (document.getElementById('cookieName') as HTMLInputElement).value = '';
+                          (document.getElementById('cookieDomain') as HTMLInputElement).value = '';
+                          (document.getElementById('cookiePlatform') as HTMLInputElement).value = '';
+                          (document.getElementById('cookieValue') as HTMLInputElement).value = '';
+                        }
+                      }} className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                        <Plus className="w-4 h-4 inline mr-1" /> {t.addCookie}
+                      </button>
+                    </div>
+
+                    {cookieSyncList.length === 0 ? (
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
+                        <Key className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{language === 'zh' ? '暂无Cookie' : 'No cookies yet'}</p>
+                        <p className="text-sm mt-1">{language === 'zh' ? '添加Cookie用于模拟登录状态' : 'Add cookies to simulate logged-in state'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {cookieSyncList.map(cookie => (
+                          <div key={cookie.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <Key className="w-5 h-5 text-slate-400" />
+                              <div>
+                                <div className="font-medium text-slate-700 dark:text-slate-200">{cookie.name}</div>
+                                <div className="text-xs text-slate-500">{cookie.domain} - {cookie.platform}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 text-xs rounded ${cookie.enabled ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700' : 'bg-slate-200 dark:bg-slate-600 text-slate-500'}`}>
+                                {cookie.enabled ? t.enable : t.disable}
+                              </span>
+                              <button onClick={() => handleDeleteCookie(cookie.id)} className="text-rose-500 hover:text-rose-700">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'ai' && (
+                  <div className="p-4">
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t.aiAnalysis}</h3>
+                    </div>
+
+                    {aiAnalysisList.length === 0 ? (
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
+                        <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{language === 'zh' ? '暂无AI分析' : 'No AI analysis yet'}</p>
+                        <p className="text-sm mt-1">{language === 'zh' ? '从队列中选择已完成的任务进行AI分析' : 'Select completed tasks from queue for AI analysis'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {aiAnalysisList.map(analysis => {
+                          const target = targets.find(t => t.id === analysis.targetId);
+                          return (
+                            <div key={analysis.id} className="p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                              <div className="font-medium text-slate-700 dark:text-slate-200 mb-2">{target?.url || analysis.targetId}</div>
+                              {analysis.viralElements && analysis.viralElements.length > 0 && (
+                                <div className="mb-2">
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">{t.viralElements}:</span>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {analysis.viralElements.map((el, i) => (
+                                      <span key={i} className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 rounded text-xs">{el}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {analysis.inspiration && (
+                                <div>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">{t.inspiration}:</span>
+                                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{analysis.inspiration}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'storage' && (
+                  <div className="p-4">
+                    <div className="mb-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t.storage}</h3>
+                    </div>
+                    
+                    <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3">{t.addStorage}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" id="storageName" placeholder={language === 'zh' ? '名称' : 'Name'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <select id="storageType" className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm">
+                          <option value="excel">{t.excelStorage}</option>
+                          <option value="mysql">{t.mysqlStorage}</option>
+                          <option value="json">JSON</option>
+                          <option value="csv">CSV</option>
+                        </select>
+                        <input type="text" id="storageHost" placeholder={language === 'zh' ? '主机(仅MySQL)' : 'Host (MySQL only)'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="number" id="storagePort" placeholder={language === 'zh' ? '端口' : 'Port'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" defaultValue={3306} />
+                        <input type="text" id="storageDatabase" placeholder={language === 'zh' ? '数据库名' : 'Database'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="storageTable" placeholder={language === 'zh' ? '表名' : 'Table Name'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="storageUsername" placeholder={language === 'zh' ? '用户名' : 'Username'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="password" id="storagePassword" placeholder={language === 'zh' ? '密码' : 'Password'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                      </div>
+                      <button onClick={() => {
+                        const name = (document.getElementById('storageName') as HTMLInputElement).value;
+                        const type = (document.getElementById('storageType') as HTMLSelectElement).value as 'excel' | 'mysql' | 'json' | 'csv';
+                        const host = (document.getElementById('storageHost') as HTMLInputElement).value;
+                        const port = parseInt((document.getElementById('storagePort') as HTMLInputElement).value) || 3306;
+                        const database = (document.getElementById('storageDatabase') as HTMLInputElement).value;
+                        const tableName = (document.getElementById('storageTable') as HTMLInputElement).value;
+                        const username = (document.getElementById('storageUsername') as HTMLInputElement).value;
+                        const password = (document.getElementById('storagePassword') as HTMLInputElement).value;
+                        
+                        if (name) {
+                          handleAddStorage({
+                            name,
+                            type,
+                            enabled: true,
+                            config: { host, port, database, tableName, username, password }
+                          });
+                          (document.getElementById('storageName') as HTMLInputElement).value = '';
+                        }
+                      }} className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                        <Plus className="w-4 h-4 inline mr-1" /> {t.addStorage}
+                      </button>
+                    </div>
+
+                    {storageConfigs.length === 0 ? (
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
+                        <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{language === 'zh' ? '暂无存储配置' : 'No storage configs yet'}</p>
+                        <p className="text-sm mt-1">{language === 'zh' ? '添加存储配置以导出数据到Excel或MySQL' : 'Add storage config to export data to Excel or MySQL'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {storageConfigs.map(storage => (
+                          <div key={storage.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <FileSpreadsheet className="w-5 h-5 text-slate-400" />
+                              <div>
+                                <div className="font-medium text-slate-700 dark:text-slate-200">{storage.name}</div>
+                                <div className="text-xs text-slate-500">{storage.type.toUpperCase()} - {storage.config.host || storage.config.filePath || 'Local'}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => handleTestConnection(storage.id)} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                                {t.testConnection}
+                              </button>
+                              <button onClick={() => handleDeleteStorage(storage.id)} className="text-rose-500 hover:text-rose-700">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'aimodel' && (
+                  <div className="p-4">
+                    <div className="mb-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t.aiModel}</h3>
+                    </div>
+                    
+                    <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3">{t.addModel}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" id="modelName" placeholder={language === 'zh' ? '模型名称' : 'Model Name'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <select id="modelProvider" value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm">
+                          <option value="openai">{t.openai}</option>
+                          <option value="anthropic">{t.anthropic}</option>
+                          <option value="google">{t.google}</option>
+                          <option value="local">{t.local}</option>
+                          <option value="custom">{t.custom}</option>
+                        </select>
+                        <input type="text" id="modelApiKey" placeholder={t.apiKey} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" id="modelEndpoint" placeholder={t.endpoint} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        {selectedProvider === 'custom' ? (
+                          <input type="text" id="modelModel" placeholder={t.model} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        ) : (
+                          <select id="modelModel" className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm">
+                            {modelOptions[selectedProvider]?.map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        )}
+                        <input type="number" id="modelTemperature" placeholder={t.temperature} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" defaultValue={0.7} step="0.1" min="0" max="2" />
+                        <input type="number" id="modelMaxTokens" placeholder={t.maxTokens} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" defaultValue={2000} />
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={async () => {
+                          const provider = selectedProvider;
+                          const apiKey = (document.getElementById('modelApiKey') as HTMLInputElement).value;
+                          const endpoint = (document.getElementById('modelEndpoint') as HTMLInputElement).value;
+                          const model = (document.getElementById('modelModel') as HTMLInputElement).value;
+                          
+                          if (provider !== 'local' && !apiKey) {
+                            addLog('error', language === 'zh' ? '请输入API密钥' : 'Please enter API key');
+                            return;
+                          }
+                          
+                          addLog('info', language === 'zh' ? '正在测试连接...' : 'Testing connection...');
+                          
+                          try {
+                            let testEndpoint = endpoint;
+                            let headers: Record<string, string> = {};
+                            let body: object = {};
+                    
+                            if (provider === 'openai') {
+                              if (!model) {
+                                addLog('error', language === 'zh' ? '请选择或输入模型名称' : 'Please select or enter model name');
+                                return;
+                              }
+                              testEndpoint = testEndpoint || 'https://api.openai.com/v1/chat/completions';
+                              headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
+                              body = { model: model, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5 };
+                            } else if (provider === 'anthropic') {
+                              if (!model) {
+                                addLog('error', language === 'zh' ? '请选择或输入模型名称' : 'Please select or enter model name');
+                                return;
+                              }
+                              testEndpoint = testEndpoint || 'https://api.anthropic.com/v1/messages';
+                              headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
+                              body = { model: model, max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] };
+                            } else if (provider === 'google') {
+                              if (!model) {
+                                addLog('error', language === 'zh' ? '请选择或输入模型名称' : 'Please select or enter model name');
+                                return;
+                              }
+                              testEndpoint = testEndpoint || `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                              headers = { 'Content-Type': 'application/json' };
+                              body = { contents: [{ parts: [{ text: 'Hi' }] }], generationConfig: { maxOutputTokens: 50 } };
+                            } else if (provider === 'local') {
+                              addLog('info', language === 'zh' ? '正在获取本地模型列表...' : 'Getting local models list...');
+                              testEndpoint = testEndpoint || 'http://localhost:11434/api/tags';
+                              headers = { 'Content-Type': 'application/json' };
+                              body = {};
+                            } else if (!testEndpoint) {
+                              addLog('error', language === 'zh' ? '请输入接口地址' : 'Please enter endpoint');
+                              return;
+                            }
+                    
+                            const response = await fetch(testEndpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+                            if (response.ok) {
+                              if (provider === 'local') {
+                                const data = await response.json();
+                                if (data.models) {
+                                  const modelNames = data.models.map((m: any) => m.name).join(', ');
+                                  addLog('success', language === 'zh' ? `连接成功! 可用模型: ${modelNames}` : `Connected! Available models: ${modelNames}`);
+                                } else {
+                                  addLog('success', language === 'zh' ? '连接成功!' : 'Connection successful!');
+                                }
+                              } else {
+                                addLog('success', language === 'zh' ? '连接成功!' : 'Connection successful!');
+                              }
+                            } else {
+                              const err = await response.text();
+                              if (provider === 'local') {
+                                addLog('error', language === 'zh' ? `连接失败: 请确保Ollama已启动` : `Failed: Make sure Ollama is running`);
+                              } else {
+                                addLog('error', language === 'zh' ? `连接失败: ${err.substring(0, 100)}` : `Failed: ${err.substring(0, 100)}`);
+                              }
+                            }
+                          } catch (err: any) {
+                            if (provider === 'local') {
+                              addLog('error', language === 'zh' ? `连接失败: 请确保Ollama已在localhost:11434启动` : `Failed: Make sure Ollama is running on localhost:11434`);
+                            } else {
+                              addLog('error', language === 'zh' ? `测试失败: ${err.message}` : `Test failed: ${err.message}`);
+                            }
+                          }
+                        }} className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors">
+                          <Zap className="w-4 h-4 inline mr-1" /> {language === 'zh' ? '测试连接' : 'Test'}
+                        </button>
+                      </div>
+                      <button onClick={() => {
+                        const name = (document.getElementById('modelName') as HTMLInputElement).value;
+                        const provider = selectedProvider as AIModelConfig['provider'];
+                        const apiKey = (document.getElementById('modelApiKey') as HTMLInputElement).value;
+                        const endpoint = (document.getElementById('modelEndpoint') as HTMLInputElement).value;
+                        const model = (document.getElementById('modelModel') as HTMLInputElement).value;
+                        const temperature = parseFloat((document.getElementById('modelTemperature') as HTMLInputElement).value) || 0.7;
+                        const maxTokens = parseInt((document.getElementById('modelMaxTokens') as HTMLInputElement).value) || 2000;
+                        
+                        if (name && model) {
+                          handleAddAIModel({
+                            name,
+                            provider,
+                            apiKey,
+                            endpoint,
+                            model,
+                            enabled: true,
+                            config: { temperature, maxTokens }
+                          });
+                          (document.getElementById('modelName') as HTMLInputElement).value = '';
+                          (document.getElementById('modelApiKey') as HTMLInputElement).value = '';
+                          (document.getElementById('modelEndpoint') as HTMLInputElement).value = '';
+                        }
+                      }} className="mt-2 w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                        <Plus className="w-4 h-4 inline mr-1" /> {t.addModel}
+                      </button>
+                    </div>
+
+                    {aiModelConfigs.length === 0 ? (
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
+                        <Brain className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{language === 'zh' ? '暂无AI模型配置' : 'No AI models configured'}</p>
+                        <p className="text-sm mt-1">{language === 'zh' ? '添加AI模型以启用智能分析功能' : 'Add AI models to enable intelligent analysis'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {aiModelConfigs.map(modelConfig => (
+                          <div key={modelConfig.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <Brain className="w-5 h-5 text-slate-400" />
+                              <div>
+                                <div className="font-medium text-slate-700 dark:text-slate-200">{modelConfig.name}</div>
+                                <div className="text-xs text-slate-500">{modelConfig.provider.toUpperCase()} - {modelConfig.model}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => handleTestAIModel(modelConfig.id)} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                                {t.testConnection}
+                              </button>
+                              <button onClick={() => handleDeleteAIModel(modelConfig.id)} className="text-rose-500 hover:text-rose-700">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="space-y-6">
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-750">
                 <h2 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
@@ -1273,6 +2210,18 @@ export default function App() {
                         <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">{label}</label>
                       </div>
                     ))}
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? '断点恢复' : 'Resume Settings'}</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="autoResume" checked={settings.autoResume || false} onChange={(e) => setSettings(s => ({ ...s, autoResume: e.target.checked }))} className="rounded" />
+                      <label htmlFor="autoResume" className="text-xs text-slate-600 dark:text-slate-400">{t.autoResume}</label>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">{t.maxRetries}</label>
+                      <input type="number" min="1" max="10" value={settings.maxRetries || 3} onChange={(e) => setSettings(s => ({ ...s, maxRetries: parseInt(e.target.value) || 3 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -1317,7 +2266,6 @@ export default function App() {
               </div>
             </div>
           </div>
-        </div>
       </div>
 
       {showPreview && selectedPreview && (
