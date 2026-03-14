@@ -754,25 +754,25 @@ export default function App() {
             </label>
             <button onClick={handleExportConfig} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors border border-slate-300 dark:border-slate-600">
               <Download className="w-4 h-4" />
-              Export Config
+              {t.exportConfig}
             </button>
             <div className="w-px h-8 bg-slate-200 dark:bg-slate-600 mx-2 hidden md:block"></div>
             {crawlState === 'running' ? (
               <>
                 <button onClick={pauseCrawl} className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-bold transition-colors">
-                  <Pause className="w-4 h-4" /> Pause
+                  <Pause className="w-4 h-4" /> {t.pause}
                 </button>
                 <button onClick={stopCrawl} className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-colors">
-                  <X className="w-4 h-4" /> Stop
+                  <X className="w-4 h-4" /> {t.stop}
                 </button>
               </>
             ) : crawlState === 'paused' ? (
               <>
                 <button onClick={resumeCrawl} className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-bold transition-colors">
-                  <Play className="w-4 h-4" /> Resume
+                  <Play className="w-4 h-4" /> {t.resume}
                 </button>
                 <button onClick={stopCrawl} className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-colors">
-                  <X className="w-4 h-4" /> Stop
+                  <X className="w-4 h-4" /> {t.stop}
                 </button>
               </>
             ) : (
@@ -781,7 +781,7 @@ export default function App() {
                 disabled={targets.filter(t => t.status === 'pending').length === 0}
                 className="inline-flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold text-white transition-colors shadow-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Play className="w-4 h-4 fill-current" /> Start Crawler
+                <Play className="w-4 h-4 fill-current" /> {t.startCrawler}
               </button>
             )}
           </div>
@@ -864,23 +864,23 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
                 <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">{stats.total}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">Total</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">{t.totalUrls}</div>
               </div>
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
                 <div className="text-2xl font-bold text-amber-500">{stats.pending}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">Pending</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">{t.pending}</div>
               </div>
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
                 <div className="text-2xl font-bold text-blue-500">{stats.scraping}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">Scraping</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">{t.scraping}</div>
               </div>
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
                 <div className="text-2xl font-bold text-emerald-500">{stats.completed}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">Completed</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">{t.completed}</div>
               </div>
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
                 <div className="text-2xl font-bold text-rose-500">{stats.failed}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">Failed</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mt-1">{t.failed}</div>
               </div>
             </div>
 
@@ -904,7 +904,7 @@ export default function App() {
                         <FileText className="w-3.5 h-3.5" /> Import {showImportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
                       <button onClick={() => setShowExportOptions(!showExportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
-                        <Download className="w-3.5 h-3.5" /> Export {showExportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        <Download className="w-3.5 h-3.5" /> {t.export} {showExportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
                     </>
                   )}
@@ -1010,20 +1010,20 @@ export default function App() {
                         </button>
                       </>
                     )}
-                    <button onClick={retryFailed} className="px-3 py-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300">Retry Failed</button>
-                    <button onClick={clearCompleted} className="px-3 py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Clear Completed</button>
-                    <button onClick={cancelAllTasks} className="px-3 py-1 text-xs text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300">Cancel All</button>
-                    <button onClick={() => saveToHistory()} className="px-3 py-1 text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">Save to History</button>
+                    <button onClick={retryFailed} className="px-3 py-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300">{language === 'zh' ? '重试失败' : 'Retry Failed'}</button>
+                    <button onClick={clearCompleted} className="px-3 py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">{language === 'zh' ? '清除已完成' : 'Clear Completed'}</button>
+                    <button onClick={cancelAllTasks} className="px-3 py-1 text-xs text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300">{language === 'zh' ? '取消全部' : 'Cancel All'}</button>
+                    <button onClick={() => saveToHistory()} className="px-3 py-1 text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">{language === 'zh' ? '保存到历史' : 'Save to History'}</button>
                   </div>
                 </div>
               )}
 
-              <div className="h-[400px] overflow-auto">
+                  <div className="h-[400px] overflow-auto">
                 {activeTab === 'queue' && filteredTargets.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-8 text-center">
                     <Settings className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
-                    <p>{searchQuery ? 'No matching results' : 'No targets added yet'}</p>
-                    <p className="text-sm mt-1">{searchQuery ? 'Try a different search term' : 'Add a URL above or import from file'}</p>
+                    <p>{searchQuery ? (language === 'zh' ? '无匹配结果' : 'No matching results') : (language === 'zh' ? '尚未添加目标' : 'No targets added yet')}</p>
+                    <p className="text-sm mt-1">{searchQuery ? (language === 'zh' ? '尝试其他搜索词' : 'Try a different search term') : (language === 'zh' ? '在上方添加 URL 或从文件导入' : 'Add a URL above or import from file')}</p>
                   </div>
                 )}
 
@@ -1074,7 +1074,7 @@ export default function App() {
                               ${target.status === 'failed' ? 'bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200' : ''}
                               ${target.status === 'cancelled' ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400' : ''}
                             `}>
-                              {target.status.charAt(0).toUpperCase() + target.status.slice(1)}
+                              {target.status === 'pending' ? t.pending : target.status === 'scraping' ? t.scraping : target.status === 'completed' ? t.completed : target.status === 'failed' ? t.failed : target.status === 'cancelled' ? t.cancel : target.status}
                             </span>
                           </td>
                           <td className="px-2 py-3 max-w-[150px]">
@@ -1126,7 +1126,7 @@ export default function App() {
                 {activeTab === 'history' && (
                   <div className="p-4 space-y-3">
                     {history.length === 0 ? (
-                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">No history yet</div>
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">{language === 'zh' ? '暂无历史记录' : 'No history yet'}</div>
                     ) : (
                       history.map(record => (
                         <div key={record.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
@@ -1134,15 +1134,15 @@ export default function App() {
                             <div className="font-medium text-slate-700 dark:text-slate-300">{record.name}</div>
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                               {new Date(record.timestamp).toLocaleString()} | 
-                              {record.successCount} success, {record.failedCount} failed
+                              {record.successCount} {language === 'zh' ? '成功' : 'success'}, {record.failedCount} {language === 'zh' ? '失败' : 'failed'}
                             </div>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => loadFromHistory(record)} className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800">
-                              Load
+                              {t.view}
                             </button>
                             <button onClick={() => deleteHistory(record.id)} className="px-2 py-1 text-xs bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 rounded hover:bg-rose-200 dark:hover:bg-rose-800">
-                              Delete
+                              {t.delete}
                             </button>
                           </div>
                         </div>
@@ -1170,11 +1170,11 @@ export default function App() {
                           addLog('info', `Scheduled task "${name}" at ${time}`);
                         }
                       }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
-                        Add Task
+                        {t.addTask}
                       </button>
                     </div>
                     {scheduledTasks.length === 0 ? (
-                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">No scheduled tasks</div>
+                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">{t.noScheduledTasks}</div>
                     ) : (
                       scheduledTasks.map(task => (
                         <div key={task.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
@@ -1183,16 +1183,16 @@ export default function App() {
                             <div>
                               <div className="font-medium text-slate-700 dark:text-slate-300">{task.name}</div>
                               <div className="text-xs text-slate-500 dark:text-slate-400">
-                                {task.schedule} | {task.urls.length} URLs | {task.enabled ? 'Enabled' : 'Disabled'}
+                                {task.schedule} | {task.urls.length} URLs | {task.enabled ? t.enable : t.disable}
                               </div>
                             </div>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => setScheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, enabled: !t.enabled } : t))} className={`px-2 py-1 text-xs rounded ${task.enabled ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-400'}`}>
-                              {task.enabled ? 'Disable' : 'Enable'}
+                              {task.enabled ? t.disable : t.enable}
                             </button>
                             <button onClick={() => setScheduledTasks(prev => prev.filter(t => t.id !== task.id))} className="px-2 py-1 text-xs bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 rounded hover:bg-rose-200 dark:hover:bg-rose-800">
-                              Delete
+                              {t.delete}
                             </button>
                           </div>
                         </div>
@@ -1273,7 +1273,7 @@ export default function App() {
 
             <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden flex flex-col h-[400px] md:h-auto">
               <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
-                <h2 className="font-semibold text-slate-200 flex items-center gap-2 text-sm">System Logs</h2>
+                <h2 className="font-semibold text-slate-200 flex items-center gap-2 text-sm">{t.logs}</h2>
                 <span className="flex h-2 w-2 relative">
                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${crawlState === 'running' ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${crawlState === 'running' ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
