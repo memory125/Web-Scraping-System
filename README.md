@@ -1,38 +1,38 @@
-# Web Scraping System
+# 网页爬虫系统
 
-A comprehensive web scraping tool built with React + TypeScript.
+基于 React + TypeScript 的全功能网页爬虫工具。
 
-## Features
+## 功能特性
 
-- Multi-URL concurrent scraping
-- Extract title, description, content, images, videos, links
-- Content cleaning and deduplication
-- Export to CSV/JSON/Excel/Markdown
-- Proxy support to bypass CORS
-- IndexedDB for local storage
-- Dark mode UI
-- Task queue controls (pause/resume/stop)
-- Batch import (CSV/TXT)
-- Progress tracking
+- 多 URL 并发爬取
+- 提取标题、描述、正文、图片、视频、链接
+- 内容清洗与去重
+- 导出为 CSV/JSON/Excel/Markdown
+- 代理支持，绕过 CORS
+- IndexedDB 本地存储
+- 暗色模式 UI
+- 任务队列控制（暂停/恢复/停止）
+- 批量导入（CSV/TXT）
+- 进度跟踪
 
-## Getting Started
+## 快速开始
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Build
+## 构建
 
 ```bash
 npm run build
 ```
 
-## Tech Stack
+## 技术栈
 
 - React 19
 - TypeScript
 - Tailwind CSS v4
 - Vite
 - idb (IndexedDB)
-- xlsx (Excel export)
+- xlsx (Excel 导出)
