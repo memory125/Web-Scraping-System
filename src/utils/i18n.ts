@@ -72,6 +72,7 @@ export interface Translations {
   save: string;
   cancel: string;
   language: string;
+  selectProxy: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -147,6 +148,7 @@ export const translations: Record<Language, Translations> = {
     save: 'Save',
     cancel: 'Cancel',
     language: 'Language',
+    selectProxy: 'Select Proxy',
   },
   zh: {
     title: '爬虫控制器',
@@ -220,6 +222,7 @@ export const translations: Record<Language, Translations> = {
     save: '保存',
     cancel: '取消',
     language: '语言',
+    selectProxy: '选择代理',
   },
 };
 

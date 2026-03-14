@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState } from './types';
 import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages } from 'lucide-react';
-import { crawlUrl, parseSitemap } from './utils/crawler';
+import { crawlUrl, parseSitemap, PROXY_LIST } from './utils/crawler';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
 import { Language, getTranslation } from './utils/i18n';
 import Papa from 'papaparse';
@@ -1226,6 +1226,19 @@ export default function App() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.crawlDepth}</label>
                   <input type="number" min="0" max="3" value={settings.crawlDepth} onChange={(e) => setSettings(s => ({ ...s, crawlDepth: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.selectProxy}</label>
+                  <select
+                    value={settings.proxy || ''}
+                    onChange={(e) => setSettings(s => ({ ...s, proxy: e.target.value || undefined }))}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                  >
+                    <option value="">Default (Auto)</option>
+                    {PROXY_LIST.map(p => (
+                      <option key={p.url} value={p.url}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   {[

@@ -4,6 +4,21 @@ const DEFAULT_PROXIES = [
   'https://corsproxy.org/?',
   'https://api.codetabs.com/v1/proxy?quest=',
   'https://proxy.corshub.org/?',
+  'https://corsproxy.net/?',
+  'https://allorigins.win/raw?url=',
+  'https://api.allorigins.workers.dev/raw?url=',
+];
+
+export const PROXY_LIST = [
+  { name: 'AllOrigins', url: 'https://api.allorigins.win/raw?url=' },
+  { name: 'AllOrigins (Alt)', url: 'https://api.allorigins.workers.dev/raw?url=' },
+  { name: 'CorsProxy.io', url: 'https://corsproxy.io/?' },
+  { name: 'CorsProxy.org', url: 'https://corsproxy.org/?' },
+  { name: 'CodeTabs', url: 'https://api.codetabs.com/v1/proxy?quest=' },
+  { name: 'CorsHub', url: 'https://proxy.corshub.org/?' },
+  { name: 'CorsProxy.net', url: 'https://corsproxy.net/?' },
+  { name: 'GProxy', url: 'https://gproxy.io/?' },
+  { name: 'Scrape-It', url: 'https://scrape-it.cloudflare-docs.workers.dev/?url=' },
 ];
 
 const USER_AGENTS = [
