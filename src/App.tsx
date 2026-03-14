@@ -792,17 +792,17 @@ export default function App() {
             {stats.total > 0 && (
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-600 dark:text-slate-300">Progress ({crawlState})</span>
+                  <span className="text-slate-600 dark:text-slate-300">{t.progress} ({crawlState})</span>
                   <span className="font-medium text-indigo-600 dark:text-indigo-400">{stats.progress}%</span>
                 </div>
                 <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
                   <div className="bg-indigo-600 dark:bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${stats.progress}%` }}></div>
                 </div>
                 <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  <span>{stats.completed} completed</span>
-                  <span>{stats.pending} pending</span>
-                  <span>{stats.scraping} scraping</span>
-                  <span>{stats.failed} failed</span>
+                  <span>{stats.completed} {t.completed}</span>
+                  <span>{stats.pending} {t.pending}</span>
+                  <span>{stats.scraping} {t.scraping}</span>
+                  <span>{stats.failed} {t.failed}</span>
                 </div>
               </div>
             )}
@@ -810,7 +810,7 @@ export default function App() {
             {showVisualizer && (
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <h3 className="font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" /> Data Visualization
+                  <BarChart3 className="w-4 h-4" /> {t.visualizer}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
@@ -1238,13 +1238,13 @@ export default function App() {
                   ))}
                 </div>
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Advanced Options</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? '高级选项' : 'Advanced Options'}</label>
                   <div className="space-y-2">
                     {[
-                      { key: 'extractKeywords', label: 'Extract Keywords' },
-                      { key: 'generateSummary', label: 'Auto Summary' },
-                      { key: 'classifyContent', label: 'Content Classification' },
-                      { key: 'analyzeSentiment', label: 'Sentiment Analysis' },
+                      { key: 'extractKeywords', label: language === 'zh' ? '关键词提取' : 'Extract Keywords' },
+                      { key: 'generateSummary', label: language === 'zh' ? '自动摘要' : 'Auto Summary' },
+                      { key: 'classifyContent', label: language === 'zh' ? '内容分类' : 'Content Classification' },
+                      { key: 'analyzeSentiment', label: language === 'zh' ? '情感分析' : 'Sentiment Analysis' },
                     ].map(({ key }) => (
                       <div key={key} className="flex items-center gap-2">
                         <input type="checkbox" id={key} checked={settings[key as keyof typeof settings] as boolean || false} onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.checked }))} className="rounded" />
@@ -1302,15 +1302,15 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-750">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200">Content Preview</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-200">{language === 'zh' ? '内容预览' : 'Content Preview'}</h3>
               <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-auto p-4 space-y-4">
-              <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">URL</h4><a href={selectedPreview.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm">{selectedPreview.url}</a></div>
-              <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Title</h4><p className="text-slate-800 dark:text-slate-200 font-medium">{selectedPreview.result?.title}</p></div>
-              {selectedPreview.result?.description && <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Description</h4><p className="text-slate-600 dark:text-slate-300 text-sm">{selectedPreview.result.description}</p></div>}
-              <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Word Count</h4><p className="text-slate-600 dark:text-slate-300 text-sm">{selectedPreview.result?.wordCount} words</p></div>
-              {selectedPreview.result?.content && <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Content</h4><div className="bg-slate-50 dark:bg-slate-750 p-3 rounded-lg text-sm text-slate-700 dark:text-slate-300 max-h-[300px] overflow-auto whitespace-pre-wrap">{selectedPreview.result.content.substring(0, 5000)}{selectedPreview.result.content.length > 5000 && '...'}</div></div>}
+              <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{t.url}</h4><a href={selectedPreview.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm">{selectedPreview.url}</a></div>
+              <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{t.title_col}</h4><p className="text-slate-800 dark:text-slate-200 font-medium">{selectedPreview.result?.title}</p></div>
+              {selectedPreview.result?.description && <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{t.description}</h4><p className="text-slate-600 dark:text-slate-300 text-sm">{selectedPreview.result.description}</p></div>}
+              <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{t.words}</h4><p className="text-slate-600 dark:text-slate-300 text-sm">{selectedPreview.result?.wordCount}</p></div>
+              {selectedPreview.result?.content && <div><h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{t.content}</h4><div className="bg-slate-50 dark:bg-slate-750 p-3 rounded-lg text-sm text-slate-700 dark:text-slate-300 max-h-[300px] overflow-auto whitespace-pre-wrap">{selectedPreview.result.content.substring(0, 5000)}{selectedPreview.result.content.length > 5000 && '...'}</div></div>}
             </div>
           </div>
         </div>
