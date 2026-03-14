@@ -30,6 +30,12 @@ export interface CrawlOptions {
   maxDelay?: number;
   customCookies?: string;
   customReferer?: string;
+  useJsRendering?: boolean;
+  autoDetectEncoding?: boolean;
+  extractKeywords?: boolean;
+  generateSummary?: boolean;
+  classifyContent?: boolean;
+  analyzeSentiment?: boolean;
 }
 
 export interface CrawlResult {
@@ -44,6 +50,12 @@ export interface CrawlResult {
   videos?: string[];
   scrapedAt: string;
   error?: string;
+  encoding?: string;
+  extractedKeywords?: string[];
+  summary?: string;
+  category?: string;
+  tags?: string[];
+  sentiment?: 'positive' | 'negative' | 'neutral';
 }
 
 function getRandomUserAgent(): string {
@@ -421,6 +433,35 @@ function parseHtml(html: string, url: string, options: CrawlOptions): CrawlResul
     videos = media.videos;
   }
   
+  let encoding: string | undefined;
+  let extractedKeywords: string[] | undefined;
+  let summary: string | undefined;
+  let category: string | undefined;
+  let tags: string[] | undefined;
+  let sentiment: 'positive' | 'negative' | 'neutral' | undefined;
+  
+  if (options.autoDetectEncoding !== false) {
+    encoding = detectEncoding(html);
+  }
+  
+  if (options.extractKeywords !== false && finalContent) {
+    extractedKeywords = extractKeywords(finalContent);
+  }
+  
+  if (options.generateSummary !== false && finalContent) {
+    summary = generateSummary(finalContent);
+  }
+  
+  if (options.classifyContent !== false && finalContent) {
+    const classification = classifyContent(finalContent);
+    category = classification.category;
+    tags = classification.tags;
+  }
+  
+  if (options.analyzeSentiment !== false && finalContent) {
+    sentiment = analyzeSentiment(finalContent);
+  }
+  
   return {
     title,
     description,
@@ -431,6 +472,12 @@ function parseHtml(html: string, url: string, options: CrawlOptions): CrawlResul
     images: images.length > 0 ? images : undefined,
     videos: videos.length > 0 ? videos : undefined,
     scrapedAt: new Date().toISOString(),
+    encoding,
+    extractedKeywords,
+    summary,
+    category,
+    tags,
+    sentiment,
   };
 }
 
@@ -545,4 +592,151 @@ export function extractMetaTags(doc: Document): Record<string, string> {
   });
   
   return meta;
+}
+
+export function detectEncoding(html: string): string {
+  const charsetMatch = html.match(/charset=["']?([^"'>\s]+)/i);
+  if (charsetMatch) {
+    return charsetMatch[1].toLowerCase();
+  }
+  
+  const metaCharset = html.match(/<meta[^>]*charset=["']?([^"'>\s]+)/i);
+  if (metaCharset) {
+    return metaCharset[1].toLowerCase();
+  }
+  
+  return 'utf-8';
+}
+
+const CHINESE_STOPWORDS = new Set([
+  '的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '里', '为', '什么', '可以', '这个', '那个', '他', '她', '它', '们', '这些', '那些', '与', '及', '或', '等', '但', '而', '如', '因', '所', '从', '以', '于', '对', '把', '被', '让', '使', '由', '向', '往', '在', '至', '自', '比', '更', '最', '已', '曾', '将', '正在', '曾', '还', '再', '又', '亦', '即', '若', '则', '如此', '怎么', '怎样', '如何', '为什么', '哪', '哪个', '哪些', '哪里', '谁', '多少', '几', '什么样', '其', '其中', '其它', '别的', '其他', '另外', '此外', '总之', '因此', '所以', '因为', '虽然', '但是', '然而', '不过', '只是', '只有', '除非', '无论', '不管', '尽管', '即使', '哪怕', '即使', '只要', '一旦', '万一'
+]);
+
+const ENGLISH_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'it', 'its', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they', 'what', 'which', 'who', 'whom', 'whose', 'where', 'when', 'why', 'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now', 'here', 'there', 'then', 'once', 'if', 'else', 'while', 'although', 'because', 'since', 'unless', 'until', 'after', 'before', 'above', 'below', 'between', 'under', 'over', 'through', 'during', 'about', 'into', 'out', 'off', 'up', 'down'
+]);
+
+export function extractKeywords(text: string, maxKeywords: number = 10): string[] {
+  if (!text || text.length < 10) return [];
+  
+  const words = text.toLowerCase()
+    .replace(/[^\w\u4e00-\u9fa5]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1);
+  
+  const wordCount: Record<string, number> = {};
+  
+  for (const word of words) {
+    const isChinese = /[\u4e00-\u9fa5]/.test(word);
+    const stopwords = isChinese ? CHINESE_STOPWORDS : ENGLISH_STOPWORDS;
+    
+    if (!stopwords.has(word) && word.length > 1) {
+      wordCount[word] = (wordCount[word] || 0) + 1;
+    }
+  }
+  
+  return Object.entries(wordCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxKeywords)
+    .map(([word]) => word);
+}
+
+export function generateSummary(text: string, maxLength: number = 200): string {
+  if (!text || text.length <= maxLength) return text;
+  
+  const sentences = text.split(/[。！？.!?]+/).filter(s => s.trim().length > 10);
+  
+  if (sentences.length === 0) {
+    return text.substring(0, maxLength) + '...';
+  }
+  
+  const scored = sentences.map((sentence, index) => {
+    let score = sentence.length / 10;
+    if (index === 0) score += 2;
+    if (sentence.includes('主要') || sentence.includes('首先') || sentence.includes('总结')) score += 1;
+    if (sentence.includes('本文') || sentence.includes('本文') || sentence.includes('介绍')) score += 1;
+    return { sentence: sentence.trim(), score };
+  });
+  
+  scored.sort((a, b) => b.score - a.score);
+  
+  let summary = '';
+  for (const { sentence } of scored) {
+    if (summary.length + sentence.length > maxLength) break;
+    summary += sentence + '。';
+  }
+  
+  if (!summary) {
+    summary = text.substring(0, maxLength) + '...';
+  }
+  
+  return summary;
+}
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  '科技': ['技术', '软件', '电脑', '手机', '互联网', 'AI', '人工智能', '编程', '代码', '开发', '程序', 'app', 'application', 'software', 'technology', 'tech', 'computer', 'phone', 'mobile', 'ai', 'artificial intelligence'],
+  '财经': ['股票', '金融', '投资', '银行', '经济', '财富', '基金', '证券', '理财', '美元', '人民币', 'finance', 'stock', 'investment', 'bank', 'economy', 'money', 'market'],
+  '娱乐': ['电影', '音乐', '游戏', '明星', '综艺', '电视剧', '演员', '歌手', '票房', 'movie', 'music', 'game', 'entertainment', 'star', 'actor', 'celebrity'],
+  '体育': ['足球', '篮球', '跑步', '比赛', '运动员', '冠军', '奥运', 'sport', 'football', 'basketball', 'game', 'player', 'match', 'champion', 'olympics'],
+  '新闻': ['新闻', '报道', '事件', '政府', '社会', '国际', '国内', 'news', 'report', 'event', 'government', 'society'],
+  '教育': ['学校', '学生', '老师', '学习', '考试', '大学', '教育', '课程', 'school', 'student', 'teacher', 'education', 'learn', 'university', 'college'],
+  '健康': ['医生', '医院', '健康', '疾病', '治疗', '药品', '身体', '医疗', 'health', 'medical', 'doctor', 'hospital', 'disease', 'medicine'],
+  '汽车': ['汽车', '车', '驾驶', '车型', '新能源', '电动车', 'car', 'automobile', 'drive', 'vehicle', 'electric'],
+  '房产': ['房子', '房价', '房地产', '购房', '装修', 'house', 'real estate', 'property', 'apartment', 'mortgage'],
+  '美食': ['美食', '餐厅', '菜', '烹饪', '食材', 'food', 'restaurant', 'cook', 'recipe', 'cuisine'],
+  '旅游': ['旅游', '旅行', '景点', '酒店', '机票', '攻略', 'travel', 'tourism', 'hotel', 'flight', 'trip', 'destination'],
+  '时尚': ['时尚', '服装', '搭配', '美容', '化妆', '品牌', 'fashion', 'clothing', 'beauty', 'makeup', 'brand'],
+};
+
+export function classifyContent(text: string): { category: string; tags: string[] } {
+  const textLower = text.toLowerCase();
+  
+  const scores: Record<string, number> = {};
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    scores[category] = 0;
+    for (const keyword of keywords) {
+      const regex = new RegExp(keyword, 'gi');
+      const matches = textLower.match(regex);
+      if (matches) {
+        scores[category] += matches.length;
+      }
+    }
+  }
+  
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const category = sorted[0]?.[1] > 0 ? sorted[0][0] : '其他';
+  
+  const allKeywords = CATEGORY_KEYWORDS[category] || [];
+  const tags = allKeywords
+    .filter(kw => textLower.includes(kw.toLowerCase()))
+    .slice(0, 5);
+  
+  return { category, tags };
+}
+
+const POSITIVE_WORDS = new Set([
+  '好', '棒', '优秀', '精彩', '喜欢', '满意', '高兴', '快乐', '幸福', '成功', '伟大', '美丽', '漂亮', '完美', '赞', '支持', '感谢', '希望', '相信', '期待',
+  'good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'love', 'like', 'happy', 'joy', 'beautiful', 'perfect', 'awesome', 'best', 'better', 'success', 'thank', 'thanks', 'hope', 'believe', 'expect', 'support', 'agree', 'yes', 'correct', 'right'
+]);
+
+const NEGATIVE_WORDS = new Set([
+  '差', '坏', '糟糕', '失望', '讨厌', '不满', '愤怒', '悲伤', '失败', '难过', '问题', '错误', 'bug', '崩溃', '失败', '垃圾', '烂',
+  'bad', 'terrible', 'awful', 'hate', 'dislike', 'sad', 'angry', 'fail', 'wrong', 'error', 'bug', 'crash', 'problem', 'issue', 'worst', 'worse', 'fail', 'broken', 'stupid', 'ugly'
+]);
+
+export function analyzeSentiment(text: string): 'positive' | 'negative' | 'neutral' {
+  const words = text.toLowerCase().split(/[\s,.\-:;!?，。、；：！？]+/);
+  
+  let positiveCount = 0;
+  let negativeCount = 0;
+  
+  for (const word of words) {
+    if (POSITIVE_WORDS.has(word)) positiveCount++;
+    if (NEGATIVE_WORDS.has(word)) negativeCount++;
+  }
+  
+  if (positiveCount > negativeCount + 2) return 'positive';
+  if (negativeCount > positiveCount + 2) return 'negative';
+  return 'neutral';
 }

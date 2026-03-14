@@ -25,6 +25,11 @@ const DEFAULT_CONFIG: AppConfig = {
     maxDelay: 3000,
     customCookies: '',
     customReferer: '',
+    useJsRendering: false,
+    autoDetectEncoding: true,
+    maxConcurrentRequests: 5,
+    followRobotsTxt: false,
+    respectNoFollow: false,
   }
 };
 
@@ -50,6 +55,7 @@ export default function App() {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dbReady, setDbReady] = useState(false);
+  const [newUrlPriority, setNewUrlPriority] = useState(5);
   
   const crawlingRef = useRef(crawlState);
   crawlingRef.current = crawlState;
@@ -378,6 +384,7 @@ export default function App() {
       url,
       status: 'pending' as const,
       depth: 0,
+      priority: newUrlPriority,
     }));
 
     setTargets(prev => [...prev, ...newTargets]);
@@ -466,6 +473,12 @@ export default function App() {
         maxDelay: settings.maxDelay,
         customCookies: settings.customCookies,
         customReferer: settings.customReferer,
+        useJsRendering: settings.useJsRendering,
+        autoDetectEncoding: settings.autoDetectEncoding,
+        extractKeywords: (settings as any).extractKeywords,
+        generateSummary: (settings as any).generateSummary,
+        classifyContent: (settings as any).classifyContent,
+        analyzeSentiment: (settings as any).analyzeSentiment,
       });
 
       setTargets(current => {
@@ -490,6 +503,12 @@ export default function App() {
                   images: result.images,
                   videos: result.videos,
                   scrapedAt: result.scrapedAt,
+                  encoding: result.encoding,
+                  extractedKeywords: result.extractedKeywords,
+                  summary: result.summary,
+                  category: result.category,
+                  tags: result.tags,
+                  sentiment: result.sentiment,
                 },
               };
             }
@@ -529,7 +548,8 @@ export default function App() {
 
       setTargets(prev => {
         const currentActive = prev.filter(t => t.status === 'scraping').length;
-        const pendingItems = prev.filter(t => t.status === 'pending');
+        const pendingItems = prev.filter(t => t.status === 'pending')
+          .sort((a, b) => (b.priority || 0) - (a.priority || 0));
         
         if (currentActive < settings.concurrency && pendingItems.length > 0) {
           const toStart = pendingItems.slice(0, settings.concurrency - currentActive);
@@ -796,6 +816,17 @@ export default function App() {
                         placeholder="Enter URL (auto-normalized)"
                         className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
+                      <select
+                        value={newUrlPriority}
+                        onChange={(e) => setNewUrlPriority(parseInt(e.target.value))}
+                        className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                      >
+                        <option value={1}>Low</option>
+                        <option value={3}>Medium-Low</option>
+                        <option value={5}>Normal</option>
+                        <option value={7}>Medium-High</option>
+                        <option value={10}>High</option>
+                      </select>
                       <button type="submit" className="px-4 py-2 bg-slate-800 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-900 dark:hover:bg-slate-500 transition-colors inline-flex items-center gap-2 font-medium">
                         <Plus className="w-4 h-4" /> Add
                       </button>
@@ -846,6 +877,7 @@ export default function App() {
                           <input type="checkbox" checked={selectedIds.size === filteredTargets.length && filteredTargets.length > 0} onChange={selectAll} className="rounded" />
                         </th>
                         <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">URL</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Priority</th>
                         <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Status</th>
                         <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Title</th>
                         <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Words</th>
@@ -866,6 +898,15 @@ export default function App() {
                             {target.depth !== undefined && target.depth > 0 && (
                               <span className="text-xs text-slate-400">Depth: {target.depth}</span>
                             )}
+                          </td>
+                          <td className="px-2 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                              ${(target.priority || 5) >= 8 ? 'bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200' : ''}
+                              ${(target.priority || 5) >= 5 && (target.priority || 5) < 8 ? 'bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200' : ''}
+                              ${(target.priority || 5) < 5 ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400' : ''}
+                            `}>
+                              {target.priority || 5}
+                            </span>
                           </td>
                           <td className="px-2 py-3">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -1029,7 +1070,7 @@ export default function App() {
                   <input type="number" min="0" max="3" value={settings.crawlDepth} onChange={(e) => setSettings(s => ({ ...s, crawlDepth: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
                 </div>
                 <div className="space-y-2">
-                  {['autoDedup', 'cleanContent', 'deduplicateContent', 'extractMedia', 'useProxy', 'randomDelay'].map(key => (
+                  {['autoDedup', 'cleanContent', 'deduplicateContent', 'extractMedia', 'useProxy', 'randomDelay', 'useJsRendering', 'autoDetectEncoding'].map(key => (
                     <div key={key} className="flex items-center gap-2">
                       <input type="checkbox" id={key} checked={settings[key as keyof typeof settings] as boolean || false} onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.checked }))} className="rounded" />
                       <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">
@@ -1037,6 +1078,22 @@ export default function App() {
                       </label>
                     </div>
                   ))}
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Advanced Options</label>
+                  <div className="space-y-2">
+                    {[
+                      { key: 'extractKeywords', label: 'Extract Keywords' },
+                      { key: 'generateSummary', label: 'Auto Summary' },
+                      { key: 'classifyContent', label: 'Content Classification' },
+                      { key: 'analyzeSentiment', label: 'Sentiment Analysis' },
+                    ].map(({ key }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <input type="checkbox" id={key} checked={settings[key as keyof typeof settings] as boolean || false} onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.checked }))} className="rounded" />
+                        <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">{key.replace(/([A-Z])/g, ' ')}</label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Custom Proxies</label>

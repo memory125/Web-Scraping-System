@@ -11,6 +11,12 @@ export interface ScrapedResult {
   links?: string[];
   images?: string[];
   videos?: string[];
+  encoding?: string;
+  extractedKeywords?: string[];
+  summary?: string;
+  category?: string;
+  tags?: string[];
+  sentiment?: 'positive' | 'negative' | 'neutral';
 }
 
 export interface Target {
@@ -21,6 +27,7 @@ export interface Target {
   error?: string;
   parentUrl?: string;
   depth?: number;
+  priority?: number;
 }
 
 export interface Settings {
@@ -41,12 +48,51 @@ export interface Settings {
   maxDelay: number;
   customCookies?: string;
   customReferer?: string;
+  useJsRendering?: boolean;
+  autoDetectEncoding?: boolean;
+  maxConcurrentRequests?: number;
+  followRobotsTxt?: boolean;
+  respectNoFollow?: boolean;
+}
+
+export interface ProxyPool {
+  id: string;
+  name: string;
+  proxies: ProxyItem[];
+  enabled: boolean;
+}
+
+export interface ProxyItem {
+  url: string;
+  enabled: boolean;
+  lastUsed?: string;
+  successCount: number;
+  failCount: number;
+}
+
+export interface LoginConfig {
+  id: string;
+  name: string;
+  url: string;
+  username: string;
+  password: string;
+  cookieName?: string;
+  enabled: boolean;
+}
+
+export interface CrawlStrategy {
+  id: string;
+  name: string;
+  settings: Partial<Settings>;
 }
 
 export interface AppConfig {
   version: string;
   targets: Target[];
   settings: Settings;
+  proxyPools?: ProxyPool[];
+  loginConfigs?: LoginConfig[];
+  crawlStrategies?: CrawlStrategy[];
 }
 
 export interface LogEntry {
@@ -74,6 +120,8 @@ export interface ScheduledTask {
   enabled: boolean;
   lastRun?: string;
   nextRun?: string;
+  strategyId?: string;
+  priority?: number;
 }
 
 export type CrawlState = 'idle' | 'running' | 'paused' | 'finished';
