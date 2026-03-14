@@ -1228,12 +1228,19 @@ export default function App() {
                   <input type="number" min="0" max="3" value={settings.crawlDepth} onChange={(e) => setSettings(s => ({ ...s, crawlDepth: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
                 </div>
                 <div className="space-y-2">
-                  {['autoDedup', 'cleanContent', 'deduplicateContent', 'extractMedia', 'useProxy', 'randomDelay', 'useJsRendering', 'autoDetectEncoding'].map(key => (
+                  {[
+                    { key: 'autoDedup', label: language === 'zh' ? '自动去重' : 'Auto Dedup' },
+                    { key: 'cleanContent', label: language === 'zh' ? '清洗内容' : 'Clean Content' },
+                    { key: 'deduplicateContent', label: language === 'zh' ? '内容去重' : 'Deduplicate Content' },
+                    { key: 'extractMedia', label: language === 'zh' ? '提取媒体' : 'Extract Media' },
+                    { key: 'useProxy', label: language === 'zh' ? '使用代理' : 'Use Proxy' },
+                    { key: 'randomDelay', label: language === 'zh' ? '随机延迟' : 'Random Delay' },
+                    { key: 'useJsRendering', label: language === 'zh' ? 'JS渲染' : 'JS Rendering' },
+                    { key: 'autoDetectEncoding', label: language === 'zh' ? '自动检测编码' : 'Auto Detect Encoding' },
+                  ].map(({ key, label }) => (
                     <div key={key} className="flex items-center gap-2">
                       <input type="checkbox" id={key} checked={settings[key as keyof typeof settings] as boolean || false} onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.checked }))} className="rounded" />
-                      <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">
-                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                      </label>
+                      <label htmlFor={key} className="text-xs text-slate-600 dark:text-slate-400">{label}</label>
                     </div>
                   ))}
                 </div>
