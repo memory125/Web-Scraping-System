@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState } from './types';
-import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers } from 'lucide-react';
+import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages } from 'lucide-react';
 import { crawlUrl, parseSitemap } from './utils/crawler';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
+import { Language, getTranslation } from './utils/i18n';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -47,6 +48,8 @@ export default function App() {
     return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
   const [themeColor, setThemeColor] = useState(() => localStorage.getItem('themeColor') || 'indigo');
+  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('language') as Language) || 'en');
+  const t = getTranslation(language);
   
   const [newProxy, setNewProxy] = useState('');
   const [showExportOptions, setShowExportOptions] = useState(false);
@@ -77,6 +80,10 @@ export default function App() {
     localStorage.setItem('themeColor', themeColor);
     document.documentElement.setAttribute('data-theme', themeColor);
   }, [themeColor]);
+
+  useEffect(() => {
+    localStorage.setItem('language', language);
+  }, [language]);
 
   useEffect(() => {
     const init = async () => {
@@ -707,9 +714,9 @@ export default function App() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
                 <Settings className="w-6 h-6" />
-                Crawler Controller
+                {t.title}
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage and execute distributed web scraping tasks</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{t.subtitle}</p>
             </div>
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -729,11 +736,20 @@ export default function App() {
               <option value="rose">Rose</option>
               <option value="purple">Purple</option>
             </select>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Language)}
+              className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 flex items-center gap-1"
+            >
+              <Languages className="w-3 h-3" />
+              <option value="en">EN</option>
+              <option value="zh">中文</option>
+            </select>
           </div>
           <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
             <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors border border-slate-300 dark:border-slate-600">
               <Upload className="w-4 h-4" />
-              Load Config
+              {t.loadConfig}
               <input type="file" accept=".json" onChange={handleLoadConfig} className="hidden" />
             </label>
             <button onClick={handleExportConfig} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors border border-slate-300 dark:border-slate-600">
@@ -872,13 +888,13 @@ export default function App() {
               <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-750">
                 <div className="flex gap-2">
                   <button onClick={() => setActiveTab('queue')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'queue' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                    Queue
+                    {t.queue}
                   </button>
                   <button onClick={() => setActiveTab('history')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                    History
+                    {t.history}
                   </button>
                   <button onClick={() => setActiveTab('schedule')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'schedule' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                    Schedule
+                    {t.schedule}
                   </button>
                 </div>
                 <div className="flex gap-2 items-center">
@@ -939,7 +955,7 @@ export default function App() {
                         type="url"
                         value={newUrl}
                         onChange={(e) => setNewUrl(e.target.value)}
-                        placeholder="Enter URL (auto-normalized)"
+                        placeholder={t.enterUrl}
                         className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                       <select
@@ -947,14 +963,14 @@ export default function App() {
                         onChange={(e) => setNewUrlPriority(parseInt(e.target.value))}
                         className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
                       >
-                        <option value={1}>Low</option>
-                        <option value={3}>Medium-Low</option>
-                        <option value={5}>Normal</option>
-                        <option value={7}>Medium-High</option>
-                        <option value={10}>High</option>
+                        <option value={1}>{t.low}</option>
+                        <option value={3}>{t.mediumLow}</option>
+                        <option value={5}>{t.normal}</option>
+                        <option value={7}>{t.mediumHigh}</option>
+                        <option value={10}>{t.high}</option>
                       </select>
                       <button type="submit" className="px-4 py-2 bg-slate-800 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-900 dark:hover:bg-slate-500 transition-colors inline-flex items-center gap-2 font-medium">
-                        <Plus className="w-4 h-4" /> Add
+                        <Plus className="w-4 h-4" /> {t.addUrl}
                       </button>
                     </form>
                   </div>
@@ -964,13 +980,13 @@ export default function App() {
                         type="url"
                         value={sitemapUrl}
                         onChange={(e) => setSitemapUrl(e.target.value)}
-                        placeholder="Enter website URL to parse sitemap..."
+                        placeholder={t.parseSitemap + '...'}
                         className="flex-1 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSitemapParse(); } }}
                       />
                       <button onClick={handleSitemapParse} disabled={isLoadingSitemap} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm inline-flex items-center gap-2">
                         <Globe className="w-4 h-4" />
-                        {isLoadingSitemap ? 'Parsing...' : 'Parse Sitemap'}
+                        {isLoadingSitemap ? t.parsing : t.parseSitemap}
                       </button>
                     </div>
                   </div>
@@ -980,7 +996,7 @@ export default function App() {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search URLs, titles, content..."
+                        placeholder={t.search}
                         className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
                       />
                     </div>
@@ -1018,13 +1034,13 @@ export default function App() {
                         <th className="px-2 py-3 w-8">
                           <input type="checkbox" checked={selectedIds.size === filteredTargets.length && filteredTargets.length > 0} onChange={selectAll} className="rounded" />
                         </th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">URL</th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Priority</th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Status</th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Title</th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Words</th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">Description</th>
-                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300 text-right">Actions</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">{t.url}</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">{t.priority}</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">{t.status}</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">{t.title_col}</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">{t.words}</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300">{t.description}</th>
+                        <th className="px-2 py-3 font-semibold text-slate-600 dark:text-slate-300 text-right">{t.actions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -1193,22 +1209,22 @@ export default function App() {
               <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-750">
                 <h2 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
                   <Settings className="w-4 h-4" />
-                  Settings
+                  {t.settings}
                 </h2>
               </div>
               <div className="p-4 space-y-3 max-h-[500px] overflow-auto">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Concurrency</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.concurrency}</label>
                     <input type="number" min="1" max="10" value={settings.concurrency} onChange={(e) => setSettings(s => ({ ...s, concurrency: parseInt(e.target.value) || 1 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Timeout (ms)</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.timeout}</label>
                     <input type="number" min="5000" max="120000" step="5000" value={settings.timeout} onChange={(e) => setSettings(s => ({ ...s, timeout: parseInt(e.target.value) || 30000 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Crawl Depth</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.crawlDepth}</label>
                   <input type="number" min="0" max="3" value={settings.crawlDepth} onChange={(e) => setSettings(s => ({ ...s, crawlDepth: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
                 </div>
                 <div className="space-y-2">
@@ -1238,7 +1254,7 @@ export default function App() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Custom Proxies</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{t.customProxies}</label>
                   <div className="space-y-2">
                     {settings.customProxies?.map((proxy, index) => (
                       <div key={index} className="flex items-center gap-2">
@@ -1247,7 +1263,7 @@ export default function App() {
                       </div>
                     ))}
                     <div className="flex items-center gap-2">
-                      <input type="text" value={newProxy} onChange={(e) => setNewProxy(e.target.value)} placeholder="Add proxy..." className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" onKeyDown={(e) => { if (e.key === 'Enter' && newProxy.trim()) { setSettings(s => ({ ...s, customProxies: [...(s.customProxies || []), newProxy.trim()] })); setNewProxy(''); } }} />
+                      <input type="text" value={newProxy} onChange={(e) => setNewProxy(e.target.value)} placeholder={t.addProxy} className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" onKeyDown={(e) => { if (e.key === 'Enter' && newProxy.trim()) { setSettings(s => ({ ...s, customProxies: [...(s.customProxies || []), newProxy.trim()] })); setNewProxy(''); } }} />
                       <button onClick={() => { if (newProxy.trim()) { setSettings(s => ({ ...s, customProxies: [...(s.customProxies || []), newProxy.trim()] })); setNewProxy(''); } }} className="text-indigo-600 hover:text-indigo-800"><Plus className="w-4 h-4" /></button>
                     </div>
                   </div>
