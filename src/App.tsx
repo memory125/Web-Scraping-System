@@ -781,7 +781,7 @@ export default function App() {
               <button 
                 onClick={() => { setCrawlState('running'); addLog('info', 'Crawling started'); }}
                 disabled={targets.filter(t => t.status === 'pending').length === 0}
-                className="inline-flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold text-white transition-colors shadow-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold text-white transition-colors shadow-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Play className="w-4 h-4 fill-current" /> {t.startCrawler}
               </button>
