@@ -45,9 +45,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule'>('queue');
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (typeof document !== 'undefined') {
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+    return isDark;
   });
-  const [themeColor, setThemeColor] = useState(() => localStorage.getItem('themeColor') || 'indigo');
+  const [themeColor, setThemeColor] = useState(() => {
+    const saved = localStorage.getItem('themeColor') || 'indigo';
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+    return saved;
+  });
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('language') as Language) || 'en');
   const t = getTranslation(language);
   
