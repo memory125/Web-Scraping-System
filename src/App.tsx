@@ -46,7 +46,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
   const [newUrl, setNewUrl] = useState('');
-  const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage' | 'aimodel'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage'>('queue');
   const [backendConfig, setBackendConfig] = useState<{ enabled: boolean; url: string }>({ enabled: false, url: 'http://localhost:8000' });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [downloadTasks, setDownloadTasks] = useState<DownloadTask[]>([]);
@@ -1307,9 +1307,6 @@ export default function App() {
                   <button onClick={() => setActiveTab('storage')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'storage' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                     {t.storage}
                   </button>
-                  <button onClick={() => setActiveTab('aimodel')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'aimodel' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                    {t.aiModel}
-                  </button>
                 </div>
                 <div className="flex gap-2 items-center">
                   {activeTab === 'queue' && (
@@ -1957,182 +1954,6 @@ export default function App() {
                                 {t.testConnection}
                               </button>
                               <button onClick={() => handleDeleteStorage(storage.id)} className="text-rose-500 hover:text-rose-700">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'aimodel' && (
-                  <div className="p-4">
-                    <div className="mb-4 flex justify-between items-center">
-                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t.aiModel}</h3>
-                    </div>
-                    
-                    <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
-                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3">{t.addModel}</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="text" id="modelName" placeholder={language === 'zh' ? '模型名称' : 'Model Name'} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
-                        <select id="modelProvider" value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm">
-                          <option value="openai">{t.openai}</option>
-                          <option value="anthropic">{t.anthropic}</option>
-                          <option value="google">{t.google}</option>
-                          <option value="local">{t.local}</option>
-                          <option value="custom">{t.custom}</option>
-                        </select>
-                        <input type="text" id="modelApiKey" placeholder={t.apiKey} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
-                        <input type="text" id="modelEndpoint" placeholder={t.endpoint} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
-                        {selectedProvider === 'custom' ? (
-                          <input type="text" id="modelModel" placeholder={t.model} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
-                        ) : (
-                          <select id="modelModel" className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm">
-                            {modelOptions[selectedProvider]?.map(m => (
-                              <option key={m} value={m}>{m}</option>
-                            ))}
-                          </select>
-                        )}
-                        <input type="number" id="modelTemperature" placeholder={t.temperature} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" defaultValue={0.7} step="0.1" min="0" max="2" />
-                        <input type="number" id="modelMaxTokens" placeholder={t.maxTokens} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" defaultValue={2000} />
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <button onClick={async () => {
-                          const provider = selectedProvider;
-                          const apiKey = (document.getElementById('modelApiKey') as HTMLInputElement).value;
-                          const endpoint = (document.getElementById('modelEndpoint') as HTMLInputElement).value;
-                          const model = (document.getElementById('modelModel') as HTMLInputElement).value;
-                          
-                          if (provider !== 'local' && !apiKey) {
-                            addLog('error', language === 'zh' ? '请输入API密钥' : 'Please enter API key');
-                            return;
-                          }
-                          
-                          addLog('info', language === 'zh' ? '正在测试连接...' : 'Testing connection...');
-                          
-                          try {
-                            let testEndpoint = endpoint;
-                            let headers: Record<string, string> = {};
-                            let body: object = {};
-                    
-                            if (provider === 'openai') {
-                              if (!model) {
-                                addLog('error', language === 'zh' ? '请选择或输入模型名称' : 'Please select or enter model name');
-                                return;
-                              }
-                              testEndpoint = testEndpoint || 'https://api.openai.com/v1/chat/completions';
-                              headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
-                              body = { model: model, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5 };
-                            } else if (provider === 'anthropic') {
-                              if (!model) {
-                                addLog('error', language === 'zh' ? '请选择或输入模型名称' : 'Please select or enter model name');
-                                return;
-                              }
-                              testEndpoint = testEndpoint || 'https://api.anthropic.com/v1/messages';
-                              headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
-                              body = { model: model, max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] };
-                            } else if (provider === 'google') {
-                              if (!model) {
-                                addLog('error', language === 'zh' ? '请选择或输入模型名称' : 'Please select or enter model name');
-                                return;
-                              }
-                              testEndpoint = testEndpoint || `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-                              headers = { 'Content-Type': 'application/json' };
-                              body = { contents: [{ parts: [{ text: 'Hi' }] }], generationConfig: { maxOutputTokens: 50 } };
-                            } else if (provider === 'local') {
-                              addLog('info', language === 'zh' ? '正在获取本地模型列表...' : 'Getting local models list...');
-                              testEndpoint = testEndpoint || 'http://localhost:11434/api/tags';
-                              headers = { 'Content-Type': 'application/json' };
-                              body = {};
-                            } else if (!testEndpoint) {
-                              addLog('error', language === 'zh' ? '请输入接口地址' : 'Please enter endpoint');
-                              return;
-                            }
-                    
-                            const response = await fetch(testEndpoint, { method: 'POST', headers, body: JSON.stringify(body) });
-                            if (response.ok) {
-                              if (provider === 'local') {
-                                const data = await response.json();
-                                if (data.models) {
-                                  const modelNames = data.models.map((m: any) => m.name).join(', ');
-                                  addLog('success', language === 'zh' ? `连接成功! 可用模型: ${modelNames}` : `Connected! Available models: ${modelNames}`);
-                                } else {
-                                  addLog('success', language === 'zh' ? '连接成功!' : 'Connection successful!');
-                                }
-                              } else {
-                                addLog('success', language === 'zh' ? '连接成功!' : 'Connection successful!');
-                              }
-                            } else {
-                              const err = await response.text();
-                              if (provider === 'local') {
-                                addLog('error', language === 'zh' ? `连接失败: 请确保Ollama已启动` : `Failed: Make sure Ollama is running`);
-                              } else {
-                                addLog('error', language === 'zh' ? `连接失败: ${err.substring(0, 100)}` : `Failed: ${err.substring(0, 100)}`);
-                              }
-                            }
-                          } catch (err: any) {
-                            if (provider === 'local') {
-                              addLog('error', language === 'zh' ? `连接失败: 请确保Ollama已在localhost:11434启动` : `Failed: Make sure Ollama is running on localhost:11434`);
-                            } else {
-                              addLog('error', language === 'zh' ? `测试失败: ${err.message}` : `Test failed: ${err.message}`);
-                            }
-                          }
-                        }} className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors">
-                          <Zap className="w-4 h-4 inline mr-1" /> {language === 'zh' ? '测试连接' : 'Test'}
-                        </button>
-                      </div>
-                      <button onClick={() => {
-                        const name = (document.getElementById('modelName') as HTMLInputElement).value;
-                        const provider = selectedProvider as AIModelConfig['provider'];
-                        const apiKey = (document.getElementById('modelApiKey') as HTMLInputElement).value;
-                        const endpoint = (document.getElementById('modelEndpoint') as HTMLInputElement).value;
-                        const model = (document.getElementById('modelModel') as HTMLInputElement).value;
-                        const temperature = parseFloat((document.getElementById('modelTemperature') as HTMLInputElement).value) || 0.7;
-                        const maxTokens = parseInt((document.getElementById('modelMaxTokens') as HTMLInputElement).value) || 2000;
-                        
-                        if (name && model) {
-                          handleAddAIModel({
-                            name,
-                            provider,
-                            apiKey,
-                            endpoint,
-                            model,
-                            enabled: true,
-                            config: { temperature, maxTokens }
-                          });
-                          (document.getElementById('modelName') as HTMLInputElement).value = '';
-                          (document.getElementById('modelApiKey') as HTMLInputElement).value = '';
-                          (document.getElementById('modelEndpoint') as HTMLInputElement).value = '';
-                        }
-                      }} className="mt-2 w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
-                        <Plus className="w-4 h-4 inline mr-1" /> {t.addModel}
-                      </button>
-                    </div>
-
-                    {aiModelConfigs.length === 0 ? (
-                      <div className="text-center text-slate-400 dark:text-slate-500 py-8">
-                        <Brain className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>{language === 'zh' ? '暂无AI模型配置' : 'No AI models configured'}</p>
-                        <p className="text-sm mt-1">{language === 'zh' ? '添加AI模型以启用智能分析功能' : 'Add AI models to enable intelligent analysis'}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {aiModelConfigs.map(modelConfig => (
-                          <div key={modelConfig.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-750 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <Brain className="w-5 h-5 text-slate-400" />
-                              <div>
-                                <div className="font-medium text-slate-700 dark:text-slate-200">{modelConfig.name}</div>
-                                <div className="text-xs text-slate-500">{modelConfig.provider.toUpperCase()} - {modelConfig.model}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => handleTestAIModel(modelConfig.id)} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
-                                {t.testConnection}
-                              </button>
-                              <button onClick={() => handleDeleteAIModel(modelConfig.id)} className="text-rose-500 hover:text-rose-700">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
