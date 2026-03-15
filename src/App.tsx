@@ -47,6 +47,7 @@ export default function App() {
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
   const [newUrl, setNewUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage' | 'aimodel'>('queue');
+  const [backendConfig, setBackendConfig] = useState<{ enabled: boolean; url: string }>({ enabled: false, url: 'http://localhost:8000' });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [downloadTasks, setDownloadTasks] = useState<DownloadTask[]>([]);
   const [cookieSyncList, setCookieSyncList] = useState<CookieSync[]>([]);
@@ -2178,6 +2179,35 @@ export default function App() {
                       <option key={p.url} value={p.url}>{p.name}</option>
                     ))}
                   </select>
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? '后端服务 (Crawl4AI)' : 'Backend (Crawl4AI)'}</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="enableBackend" checked={backendConfig.enabled} onChange={(e) => setBackendConfig(b => ({ ...b, enabled: e.target.checked }))} className="rounded" />
+                      <label htmlFor="enableBackend" className="text-xs text-slate-600 dark:text-slate-400">{t.enableBackend}</label>
+                    </div>
+                    {backendConfig.enabled && (
+                      <div>
+                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">{t.backendUrl}</label>
+                        <input type="text" value={backendConfig.url} onChange={(e) => setBackendConfig(b => ({ ...b, url: e.target.value }))} placeholder="http://localhost:8000" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <button onClick={async () => {
+                          try {
+                            const response = await fetch(`${backendConfig.url}/health`);
+                            if (response.ok) {
+                              addLog('success', language === 'zh' ? '后端连接成功!' : 'Backend connected!');
+                            } else {
+                              addLog('error', language === 'zh' ? '后端连接失败' : 'Backend connection failed');
+                            }
+                          } catch {
+                            addLog('error', language === 'zh' ? '无法连接到后端服务' : 'Cannot connect to backend');
+                          }
+                        }} className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs">
+                          {language === 'zh' ? '测试连接' : 'Test Connection'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {[

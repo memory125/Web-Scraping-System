@@ -113,6 +113,9 @@ export interface Translations {
   google: string;
   local: string;
   custom: string;
+  backend: string;
+  backendUrl: string;
+  enableBackend: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -228,6 +231,9 @@ export const translations: Record<Language, Translations> = {
     google: 'Google',
     local: 'Local',
     custom: 'Custom',
+    backend: 'Backend',
+    backendUrl: 'Backend URL',
+    enableBackend: 'Enable Backend',
   },
   zh: {
     title: '爬虫控制器',
@@ -341,6 +347,9 @@ export const translations: Record<Language, Translations> = {
     google: 'Google',
     local: '本地',
     custom: '自定义',
+    backend: '后端服务',
+    backendUrl: '后端地址',
+    enableBackend: '启用后端',
   },
 };
 

@@ -205,3 +205,9 @@ export interface AIModelConfig {
     topP?: number;
   };
 }
+
+export interface BackendConfig {
+  enabled: boolean;
+  url: string;
+  authToken?: string;
+}
