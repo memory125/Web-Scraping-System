@@ -66,6 +66,8 @@ export interface TestLLMRequest {
   base_url?: string;
   model?: string;
   test_prompt?: string;
+  temperature?: number;
+  max_tokens?: number;
 }
 
 export interface TestLLMResponse {
@@ -73,6 +75,12 @@ export interface TestLLMResponse {
   message?: string;
   response?: string;
   error?: string;
+  model?: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 export interface AvailableModels {
@@ -80,6 +88,14 @@ export interface AvailableModels {
   anthropic?: string[];
   google?: string[];
   ollama?: string[];
+  [key: string]: string[] | undefined;
+}
+
+export interface LLMProviderInfo {
+  name: string;
+  models: string[];
+  requires_api_key: boolean;
+  supports_base_url: boolean;
 }
 
 // Check if backend is available
@@ -202,6 +218,24 @@ export async function getAvailableModels(ollamaUrl?: string): Promise<AvailableM
   }
   
   return response.json();
+}
+
+// Get available LLM providers
+export async function getLLMProviders(): Promise<LLMProviderInfo[]> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/llm/providers`, {
+    method: 'GET',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  return data.providers;
 }
 
 // Test LLM connection
