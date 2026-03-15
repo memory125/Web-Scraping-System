@@ -2067,10 +2067,49 @@ export default function App() {
                             addLog('error', language === 'zh' ? '无法连接到后端服务' : 'Cannot connect to backend');
                           }
                         }} className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs">
-                          {language === 'zh' ? '测试连接' : 'Test Connection'}
+                          {language === 'zh' ? '测试连接' : 'Test'}
                         </button>
                       </div>
                     )}
+                  </div>
+                </div>
+                
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? 'LLM模型测试' : 'LLM Model Test'}</label>
+                  <div className="space-y-2">
+                    <select id="llmProvider" className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700">
+                      <option value="openai/gpt-4o-mini">OpenAI GPT-4o Mini</option>
+                      <option value="openai/gpt-4o">OpenAI GPT-4o</option>
+                      <option value="openai/gpt-3.5-turbo">OpenAI GPT-3.5 Turbo</option>
+                      <option value="anthropic/claude-3-haiku">Anthropic Claude 3 Haiku</option>
+                      <option value="anthropic/claude-3-sonnet">Anthropic Claude 3 Sonnet</option>
+                      <option value="google/gemini-1.5-flash">Google Gemini 1.5 Flash</option>
+                      <option value="google/gemini-1.5-pro">Google Gemini 1.5 Pro</option>
+                      <option value="ollama/llama2">Ollama Llama2</option>
+                      <option value="ollama/mistral">Ollama Mistral</option>
+                    </select>
+                    <input type="text" id="llmApiKey" placeholder={language === 'zh' ? 'API密钥 (可选)' : 'API Key (optional)'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
+                    <input type="text" id="llmModel" placeholder={language === 'zh' ? '模型名称' : 'Model name'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
+                    <button onClick={async () => {
+                      const provider = (document.getElementById('llmProvider') as HTMLSelectElement).value;
+                      const apiKey = (document.getElementById('llmApiKey') as HTMLInputElement).value;
+                      const model = (document.getElementById('llmModel') as HTMLInputElement).value;
+                      
+                      try {
+                        addLog('info', language === 'zh' ? '正在测试LLM连接...' : 'Testing LLM connection...');
+                        const { testLLMConnection } = await import('./utils/api');
+                        const result = await testLLMConnection({ provider, api_key: apiKey, model });
+                        if (result.success) {
+                          addLog('success', language === 'zh' ? `LLM连接成功! 响应: ${result.response}` : `LLM connected! Response: ${result.response}`);
+                        } else {
+                          addLog('error', language === 'zh' ? `LLM连接失败: ${result.error}` : `LLM failed: ${result.error}`);
+                        }
+                      } catch (err: any) {
+                        addLog('error', language === 'zh' ? `测试失败: ${err.message}` : `Test failed: ${err.message}`);
+                      }
+                    }} className="w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs">
+                      {language === 'zh' ? '测试LLM连接' : 'Test LLM'}
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-2">

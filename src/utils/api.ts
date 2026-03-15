@@ -60,6 +60,21 @@ export interface BackendCrawlResult {
   error?: string;
 }
 
+export interface TestLLMRequest {
+  provider: string;
+  api_key?: string;
+  base_url?: string;
+  model?: string;
+  test_prompt?: string;
+}
+
+export interface TestLLMResponse {
+  success: boolean;
+  message?: string;
+  response?: string;
+  error?: string;
+}
+
 // Check if backend is available
 export async function checkBackendHealth(): Promise<boolean> {
   if (!API_CONFIG.useBackend || !API_CONFIG.backendUrl) {
@@ -151,6 +166,27 @@ export async function batchCrawlWithBackend(urls: string[]): Promise<BackendCraw
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(urls),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Test LLM connection
+export async function testLLMConnection(request: TestLLMRequest): Promise<TestLLMResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/llm/test`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
   });
   
   if (!response.ok) {

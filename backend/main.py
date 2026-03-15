@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai import LLMExtractionStrategy, LLMConfig
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy, BestFirstDeepCrawlStrategy
+from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy
 
 # Global crawler instance
 crawler: Optional[AsyncWebCrawler] = None
@@ -170,7 +170,7 @@ async def deep_crawl(request: DeepCrawlRequest):
                 max_pages=request.max_pages
             )
         else:
-            strategy = BestFirstDeepCrawlStrategy(
+            strategy = BFSDeepCrawlStrategy(
                 max_depth=request.max_depth,
                 max_pages=request.max_pages
             )
@@ -286,6 +286,109 @@ async def execute_js(request: BrowserRequest):
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class TestLLMRequest(BaseModel):
+    provider: str = "openai/gpt-4o-mini"
+    api_key: str = ""
+    base_url: str = ""
+    model: str = ""
+    test_prompt: str = "Say 'Hello' in 3 words"
+
+@app.post("/llm/test")
+async def test_llm_connection(request: TestLLMRequest):
+    try:
+        import httpx
+        
+        api_key = request.api_key or os.getenv("OPENAI_API_KEY", "")
+        if not api_key:
+            return {"success": False, "error": "No API key provided"}
+        
+        # Map provider to endpoint
+        if request.provider.startswith("openai"):
+            endpoint = request.base_url or "https://api.openai.com/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            model = request.model or "gpt-4o-mini"
+            body = {
+                "model": model,
+                "messages": [{"role": "user", "content": request.test_prompt}],
+                "max_tokens": 50
+            }
+        elif request.provider.startswith("anthropic"):
+            endpoint = request.base_url or "https://api.anthropic.com/v1/messages"
+            headers = {
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01"
+            }
+            model = request.model or "claude-3-haiku-20240307"
+            body = {
+                "model": model,
+                "max_tokens": 50,
+                "messages": [{"role": "user", "content": request.test_prompt}]
+            }
+        elif request.provider.startswith("google") or request.provider.startswith("gemini"):
+            endpoint = request.base_url or f"https://generativelanguage.googleapis.com/v1/models/{request.model or 'gemini-1.5-flash'}:generateContent?key={api_key}"
+            headers = {"Content-Type": "application/json"}
+            body = {
+                "contents": [{"parts": [{"text": request.test_prompt}]}],
+                "generationConfig": {"maxOutputTokens": 50}
+            }
+        elif request.provider == "ollama" or request.provider == "local":
+            endpoint = request.base_url or "http://localhost:11434/api/generate"
+            headers = {"Content-Type": "application/json"}
+            model = request.model or "llama2"
+            body = {
+                "model": model,
+                "prompt": request.test_prompt,
+                "stream": False
+            }
+        else:
+            # Custom provider
+            if not request.base_url:
+                return {"success": False, "error": "Base URL required for custom provider"}
+            endpoint = request.base_url
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            body = {
+                "model": request.model or "gpt-4",
+                "messages": [{"role": "user", "content": request.test_prompt}]
+            }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(endpoint, json=body, headers=headers, timeout=30.0)
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Extract response text based on provider
+                if request.provider.startswith("openai"):
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                elif request.provider.startswith("anthropic"):
+                    content = data.get("content", [{}])[0].get("text", "")
+                elif request.provider.startswith("google") or request.provider.startswith("gemini"):
+                    content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                elif request.provider == "ollama" or request.provider == "local":
+                    content = data.get("response", "")
+                else:
+                    content = str(data)
+                    
+                return {
+                    "success": True, 
+                    "message": "Connection successful!",
+                    "response": content
+                }
+            else:
+                return {
+                    "success": False, 
+                    "error": f"HTTP {response.status_code}: {response.text[:200]}"
+                }
+                
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
