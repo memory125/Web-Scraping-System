@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState, Account, DownloadTask, ResumeToken, CookieSync, AIAnalysis, StorageConfig, AIModelConfig } from './types';
 import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages, Save, FolderOpen, User, Key, Brain, Zap } from 'lucide-react';
 import { crawlUrl, parseSitemap, PROXY_LIST } from './utils/crawler';
+import { crawlWithBackend, checkBackendHealth } from './utils/api';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
 import { Language, getTranslation } from './utils/i18n';
 import Papa from 'papaparse';
@@ -911,8 +912,49 @@ export default function App() {
   const crawlSingle = useCallback(async (target: Target) => {
     addLog('info', `Starting to scrape: ${target.url}`);
     
+    let useBackendCrawler = false;
+    
+    // Check if backend is enabled and available
+    if (backendConfig.enabled) {
+      try {
+        const isBackendAvailable = await checkBackendHealth();
+        if (isBackendAvailable) {
+          useBackendCrawler = true;
+          addLog('info', 'Using Crawl4AI backend for crawling');
+        } else {
+          addLog('info', 'Backend not available, falling back to default crawler');
+        }
+      } catch {
+        addLog('info', 'Backend not available, falling back to default crawler');
+      }
+    }
+    
     try {
-      const result = await crawlUrl(target.url, { 
+      let result: any;
+      
+      if (useBackendCrawler) {
+        // Use backend crawler
+        const backendResult = await crawlWithBackend({
+          url: target.url,
+          word_count_threshold: 15,
+        });
+        
+        if (backendResult.success) {
+          result = {
+            title: target.url,
+            wordCount: backendResult.markdown?.length || 0,
+            content: backendResult.markdown || '',
+            links: backendResult.links || [],
+            images: backendResult.images || [],
+            videos: backendResult.videos || [],
+            scrapedAt: new Date().toISOString(),
+          };
+        } else {
+          throw new Error(backendResult.error || 'Backend crawl failed');
+        }
+      } else {
+        // Use default crawler
+        result = await crawlUrl(target.url, { 
         timeout: settings.timeout,
         useProxy: settings.useProxy,
         proxy: settings.proxy,
@@ -933,6 +975,7 @@ export default function App() {
         classifyContent: (settings as any).classifyContent,
         analyzeSentiment: (settings as any).analyzeSentiment,
       });
+      }
 
       setTargets(current => {
         const updated = current.map(t => {
@@ -991,7 +1034,7 @@ export default function App() {
         return t;
       }));
     }
-  }, [settings]);
+  }, [settings, backendConfig]);
 
   useEffect(() => {
     if (crawlState !== 'running') return;
@@ -2005,13 +2048,13 @@ export default function App() {
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? '后端服务 (Crawl4AI)' : 'Backend (Crawl4AI)'}</label>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" id="enableBackend" checked={backendConfig.enabled} onChange={(e) => setBackendConfig(b => ({ ...b, enabled: e.target.checked }))} className="rounded" />
+                      <input type="checkbox" id="enableBackend" checked={backendConfig.enabled} onChange={(e) => { const v = e.target.checked; setBackendConfig(b => ({ ...b, enabled: v })); import('./utils/api').then(m => m.setBackendConfig({ enabled: v, url: backendConfig.url })); }} className="rounded" />
                       <label htmlFor="enableBackend" className="text-xs text-slate-600 dark:text-slate-400">{t.enableBackend}</label>
                     </div>
                     {backendConfig.enabled && (
                       <div>
                         <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">{t.backendUrl}</label>
-                        <input type="text" value={backendConfig.url} onChange={(e) => setBackendConfig(b => ({ ...b, url: e.target.value }))} placeholder="http://localhost:8000" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
+                        <input type="text" value={backendConfig.url} onChange={(e) => { const v = e.target.value; setBackendConfig(b => ({ ...b, url: v })); import('./utils/api').then(m => m.setBackendConfig({ enabled: backendConfig.enabled, url: v })); }} placeholder="http://localhost:8000" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm" />
                         <button onClick={async () => {
                           try {
                             const response = await fetch(`${backendConfig.url}/health`);

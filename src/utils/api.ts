@@ -1,15 +1,20 @@
 // Backend API configuration
 // Set this to your Python backend URL, or leave empty to use local crawler
 
+let backendConfig = {
+  enabled: false,
+  url: 'http://localhost:8000',
+};
+
+export const setBackendConfig = (config: { enabled: boolean; url: string }) => {
+  backendConfig = config;
+};
+
+export const getBackendConfig = () => backendConfig;
+
 export const API_CONFIG = {
-  // Backend URL (e.g., http://localhost:8000)
-  // If empty, will use local crawler
-  backendUrl: '',
-  
-  // Enable/disable backend mode
-  useBackend: false,
-  
-  // Request timeout (ms)
+  get backendUrl() { return backendConfig.url; },
+  get useBackend() { return backendConfig.enabled; },
   timeout: 60000,
 };
 
