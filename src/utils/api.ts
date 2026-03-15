@@ -75,6 +75,13 @@ export interface TestLLMResponse {
   error?: string;
 }
 
+export interface AvailableModels {
+  openai?: string[];
+  anthropic?: string[];
+  google?: string[];
+  ollama?: string[];
+}
+
 // Check if backend is available
 export async function checkBackendHealth(): Promise<boolean> {
   if (!API_CONFIG.useBackend || !API_CONFIG.backendUrl) {
@@ -166,6 +173,23 @@ export async function batchCrawlWithBackend(urls: string[]): Promise<BackendCraw
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(urls),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Get available models from backend
+export async function getAvailableModels(): Promise<AvailableModels> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/llm/models`, {
+    method: 'GET',
   });
   
   if (!response.ok) {

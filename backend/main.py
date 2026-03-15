@@ -294,6 +294,31 @@ class TestLLMRequest(BaseModel):
     model: str = ""
     test_prompt: str = "Say 'Hello' in 3 words"
 
+@app.get("/llm/models")
+async def get_available_models():
+    """Get available models from different LLM providers"""
+    models = {
+        "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+        "anthropic": ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
+        "google": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-pro"],
+    }
+    
+    # Try to get Ollama models
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://localhost:11434/api/tags", timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                ollama_models = [m.get("name", "") for m in data.get("models", [])]
+                models["ollama"] = ollama_models
+            else:
+                models["ollama"] = []
+    except Exception:
+        models["ollama"] = []
+    
+    return models
+
 @app.post("/llm/test")
 async def test_llm_connection(request: TestLLMRequest):
     try:
