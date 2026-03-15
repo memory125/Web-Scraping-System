@@ -2080,7 +2080,7 @@ export default function App() {
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? 'LLM模型测试' : 'LLM Model Test'}</label>
                   <div className="space-y-2">
                     <div className="flex gap-2">
-                      <select id="llmProvider" value={selectedProvider} onChange={async (e) => { const v = e.target.value; setSelectedProvider(v); setLoadingModels(true); try { const { getAvailableModels } = await import('./utils/api'); const models = await getAvailableModels(); setAvailableModels(models || {}); } catch {} setLoadingModels(false); }} className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700">
+                      <select id="llmProvider" value={selectedProvider} onChange={async (e) => { const v = e.target.value; setSelectedProvider(v); setLoadingModels(true); try { const { getAvailableModels } = await import('./utils/api'); const baseUrl = v.startsWith('ollama') ? (document.getElementById('llmBaseUrl') as HTMLInputElement)?.value || 'http://localhost:11434' : ''; const models = await getAvailableModels(baseUrl); setAvailableModels(models || {}); } catch {} setLoadingModels(false); }} className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700">
                         <optgroup label="OpenAI">
                           {(availableModels.openai && availableModels.openai.length > 0 ? availableModels.openai : ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo']).map(m => <option key={m} value={`openai/${m}`}>{m}</option>)}
                         </optgroup>
@@ -2098,17 +2098,21 @@ export default function App() {
                         <RefreshCw className={`w-3.5 h-3.5 ${loadingModels ? 'animate-spin' : ''}`} />
                       </button>
                     </div>
+                    {selectedProvider.startsWith('ollama') && (
+                      <input type="text" id="llmBaseUrl" placeholder={language === 'zh' ? 'Ollama地址 (如 http://localhost:11434)' : 'Ollama URL (e.g. http://localhost:11434)'} defaultValue="http://localhost:11434" className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
+                    )}
                     <input type="text" id="llmApiKey" placeholder={language === 'zh' ? 'API密钥 (可选)' : 'API Key (optional)'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
                     <input type="text" id="llmModel" placeholder={language === 'zh' ? '模型名称 (留空使用默认)' : 'Model (leave empty for default)'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
                     <button onClick={async () => {
                       const provider = selectedProvider;
                       const apiKey = (document.getElementById('llmApiKey') as HTMLInputElement).value;
                       const model = (document.getElementById('llmModel') as HTMLInputElement).value;
+                      const baseUrl = selectedProvider.startsWith('ollama') ? (document.getElementById('llmBaseUrl') as HTMLInputElement).value : '';
                       
                       try {
                         addLog('info', language === 'zh' ? '正在测试LLM连接...' : 'Testing LLM connection...');
                         const { testLLMConnection } = await import('./utils/api');
-                        const result = await testLLMConnection({ provider, api_key: apiKey, model });
+                        const result = await testLLMConnection({ provider, api_key: apiKey, model, base_url: baseUrl });
                         if (result.success) {
                           addLog('success', language === 'zh' ? `LLM连接成功! 响应: ${result.response}` : `LLM connected! Response: ${result.response}`);
                         } else {

@@ -295,7 +295,7 @@ class TestLLMRequest(BaseModel):
     test_prompt: str = "Say 'Hello' in 3 words"
 
 @app.get("/llm/models")
-async def get_available_models():
+async def get_available_models(ollama_url: str = "http://localhost:11434"):
     """Get available models from different LLM providers"""
     models = {
         "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
@@ -307,7 +307,7 @@ async def get_available_models():
     try:
         import httpx
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:11434/api/tags", timeout=5.0)
+            response = await client.get(f"{ollama_url}/api/tags", timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
                 ollama_models = [m.get("name", "") for m in data.get("models", [])]

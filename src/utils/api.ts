@@ -183,12 +183,17 @@ export async function batchCrawlWithBackend(urls: string[]): Promise<BackendCraw
 }
 
 // Get available models from backend
-export async function getAvailableModels(): Promise<AvailableModels> {
+export async function getAvailableModels(ollamaUrl?: string): Promise<AvailableModels> {
   if (!API_CONFIG.backendUrl) {
     throw new Error('Backend URL not configured');
   }
   
-  const response = await fetch(`${API_CONFIG.backendUrl}/llm/models`, {
+  let url = `${API_CONFIG.backendUrl}/llm/models`;
+  if (ollamaUrl) {
+    url += `?ollama_url=${encodeURIComponent(ollamaUrl)}`;
+  }
+  
+  const response = await fetch(url, {
     method: 'GET',
   });
   
