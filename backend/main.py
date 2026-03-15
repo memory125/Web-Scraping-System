@@ -337,15 +337,51 @@ async def test_llm_connection(request: TestLLMRequest):
                 "generationConfig": {"maxOutputTokens": 50}
             }
         elif request.provider == "ollama" or request.provider == "local":
-            endpoint = request.base_url or "http://localhost:11434/api/generate"
+            endpoint = request.base_url or "http://localhost:11434"
             headers = {"Content-Type": "application/json"}
-            model = request.model or "llama2"
-            body = {
-                "model": model,
-                "prompt": request.test_prompt,
-                "stream": False
-            }
-        else:
+            
+            # First, try to get available models
+            try:
+                async with httpx.AsyncClient() as client:
+                    tags_response = await client.get(f"{endpoint}/api/tags", timeout=10.0)
+                    if tags_response.status_code == 200:
+                        models_data = tags_response.json()
+                        available_models = [m.get("name", "") for m in models_data.get("models", [])]
+                        
+                        # If no specific model provided, use the first available one
+                        model = request.model or (available_models[0] if available_models else "llama2")
+                        
+                        # Now test with generate endpoint
+                        generate_response = await client.post(
+                            f"{endpoint}/api/generate",
+                            json={"model": model, "prompt": request.test_prompt, "stream": False},
+                            timeout=30.0
+                        )
+                        
+                        if generate_response.status_code == 200:
+                            gen_data = generate_response.json()
+                            content = gen_data.get("response", "")
+                            return {
+                                "success": True,
+                                "message": f"Connected! Available models: {', '.join(available_models)}",
+                                "response": content
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Generate failed: HTTP {generate_response.status_code}"
+                            }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Cannot get models list: HTTP {tags_response.status_code}"
+                        }
+            except Exception as ollama_err:
+                return {
+                    "success": False,
+                    "error": f"Ollama connection failed: {str(ollama_err)}. Make sure Ollama is running on port 11434."
+                }
+        elif request.provider and request.provider not in ["openai", "anthropic", "google", "gemini"]:
             # Custom provider
             if not request.base_url:
                 return {"success": False, "error": "Base URL required for custom provider"}
@@ -357,6 +393,18 @@ async def test_llm_connection(request: TestLLMRequest):
             body = {
                 "model": request.model or "gpt-4",
                 "messages": [{"role": "user", "content": request.test_prompt}]
+            }
+        else:
+            # Default case for OpenAI/Anthropic/Google
+            endpoint = request.base_url or "https://api.openai.com/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            body = {
+                "model": request.model or "gpt-4o-mini",
+                "messages": [{"role": "user", "content": request.test_prompt}],
+                "max_tokens": 50
             }
         
         async with httpx.AsyncClient() as client:

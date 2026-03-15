@@ -2085,8 +2085,7 @@ export default function App() {
                       <option value="anthropic/claude-3-sonnet">Anthropic Claude 3 Sonnet</option>
                       <option value="google/gemini-1.5-flash">Google Gemini 1.5 Flash</option>
                       <option value="google/gemini-1.5-pro">Google Gemini 1.5 Pro</option>
-                      <option value="ollama/llama2">Ollama Llama2</option>
-                      <option value="ollama/mistral">Ollama Mistral</option>
+                      <option value="ollama">Ollama (Local)</option>
                     </select>
                     <input type="text" id="llmApiKey" placeholder={language === 'zh' ? 'API密钥 (可选)' : 'API Key (optional)'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
                     <input type="text" id="llmModel" placeholder={language === 'zh' ? '模型名称' : 'Model name'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
