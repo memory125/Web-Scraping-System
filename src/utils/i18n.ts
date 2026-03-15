@@ -6,6 +6,7 @@ export interface Translations {
   queue: string;
   history: string;
   schedule: string;
+  deepCrawl: string;
   addUrl: string;
   enterUrl: string;
   priority: string;
@@ -50,6 +51,12 @@ export interface Translations {
   excel: string;
   markdown: string;
   parseSitemap: string;
+  deepCrawlSettings: string;
+  maxDepth: string;
+  maxPages: string;
+  crawlStrategy: string;
+  startDeepCrawl: string;
+  deepCrawling: string;
   parsing: string;
   noUrlsFound: string;
   progress: string;
@@ -125,6 +132,7 @@ export const translations: Record<Language, Translations> = {
     queue: 'Queue',
     history: 'History',
     schedule: 'Schedule',
+    deepCrawl: 'Deep Crawl',
     addUrl: 'Add',
     enterUrl: 'Enter URL (auto-normalized)',
     priority: 'Priority',
@@ -169,6 +177,12 @@ export const translations: Record<Language, Translations> = {
     excel: 'Excel',
     markdown: 'Markdown',
     parseSitemap: 'Parse Sitemap',
+    deepCrawlSettings: 'Deep Crawl Settings',
+    maxDepth: 'Max Depth',
+    maxPages: 'Max Pages',
+    crawlStrategy: 'Crawl Strategy',
+    startDeepCrawl: 'Start Deep Crawl',
+    deepCrawling: 'Deep Crawling...',
     parsing: 'Parsing...',
     noUrlsFound: 'No URLs found',
     progress: 'Progress',
@@ -241,6 +255,7 @@ export const translations: Record<Language, Translations> = {
     queue: '队列',
     history: '历史',
     schedule: '定时',
+    deepCrawl: '深度爬取',
     addUrl: '添加',
     enterUrl: '输入 URL (自动标准化)',
     priority: '优先级',
@@ -285,6 +300,12 @@ export const translations: Record<Language, Translations> = {
     excel: 'Excel',
     markdown: 'Markdown',
     parseSitemap: '解析网站地图',
+    deepCrawlSettings: '深度爬取设置',
+    maxDepth: '最大深度',
+    maxPages: '最大页面数',
+    crawlStrategy: '爬取策略',
+    startDeepCrawl: '开始深度爬取',
+    deepCrawling: '深度爬取中...',
     parsing: '解析中...',
     noUrlsFound: '未找到网址',
     progress: '进度',

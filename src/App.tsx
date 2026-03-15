@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState, Account, DownloadTask, ResumeToken, CookieSync, AIAnalysis, StorageConfig, AIModelConfig } from './types';
-import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages, Save, FolderOpen, User, Key, Brain, Zap } from 'lucide-react';
+import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages, Save, FolderOpen, User, Key, Brain, Zap, Network } from 'lucide-react';
 import { crawlUrl, parseSitemap, PROXY_LIST } from './utils/crawler';
 import { crawlWithBackend, checkBackendHealth } from './utils/api';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
@@ -98,6 +98,14 @@ export default function App() {
   const [showVisualizer, setShowVisualizer] = useState(false);
   const [sitemapUrl, setSitemapUrl] = useState('');
   const [isLoadingSitemap, setIsLoadingSitemap] = useState(false);
+  
+  // Deep crawl state
+  const [deepCrawlUrl, setDeepCrawlUrl] = useState('');
+  const [deepCrawlDepth, setDeepCrawlDepth] = useState(2);
+  const [deepCrawlMaxPages, setDeepCrawlMaxPages] = useState(10);
+  const [deepCrawlStrategy, setDeepCrawlStrategy] = useState<'bfs' | 'dfs' | 'best_first'>('bfs');
+  const [isDeepCrawling, setIsDeepCrawling] = useState(false);
+  const [deepCrawlResults, setDeepCrawlResults] = useState<any[]>([]);
   
   const crawlingRef = useRef(crawlState);
   crawlingRef.current = crawlState;
@@ -783,6 +791,58 @@ export default function App() {
     }
   };
 
+  const handleDeepCrawl = async () => {
+    if (!deepCrawlUrl) return;
+    if (!backendConfig.enabled) {
+      addLog('error', language === 'zh' ? '请先启用后端服务' : 'Please enable backend service first');
+      return;
+    }
+
+    setIsDeepCrawling(true);
+    setDeepCrawlResults([]);
+    addLog('info', language === 'zh' ? `开始深度爬取: ${deepCrawlUrl}` : `Starting deep crawl: ${deepCrawlUrl}`);
+
+    try {
+      const { deepCrawlWithBackend } = await import('./utils/api');
+      
+      const results = await deepCrawlWithBackend({
+        urls: [deepCrawlUrl],
+        max_depth: deepCrawlDepth,
+        max_pages: deepCrawlMaxPages,
+        strategy: deepCrawlStrategy
+      });
+
+      setDeepCrawlResults(results);
+      
+      // Add results to targets
+      const newTargets = results.map((r, idx) => ({
+        id: `deep-${Date.now()}-${idx}`,
+        url: r.url,
+        priority: 5,
+        status: 'completed' as const,
+        result: {
+          title: r.url,
+          wordCount: r.markdown?.length || 0,
+          content: r.markdown || '',
+          links: r.links || [],
+          images: r.images || [],
+          videos: r.videos || [],
+          scrapedAt: new Date().toISOString(),
+        }
+      }));
+
+      setTargets(prev => [...prev, ...newTargets]);
+      addLog('success', language === 'zh' ? `深度爬取完成: ${results.length} 个页面` : `Deep crawl completed: ${results.length} pages`);
+      
+      // Reset form
+      setDeepCrawlUrl('');
+    } catch (err: any) {
+      addLog('error', language === 'zh' ? `深度爬取失败: ${err.message}` : `Deep crawl failed: ${err.message}`);
+    } finally {
+      setIsDeepCrawling(false);
+    }
+  };
+
   const handleAddUrl = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newUrl) return;
@@ -1103,14 +1163,14 @@ export default function App() {
     return () => clearInterval(checkScheduledTasks);
   }, [scheduledTasks]);
 
-  const stats = {
+  const stats = React.useMemo(() => ({
     total: targets.length,
     pending: targets.filter(t => t.status === 'pending').length,
     scraping: targets.filter(t => t.status === 'scraping').length,
     completed: targets.filter(t => t.status === 'completed').length,
     failed: targets.filter(t => t.status === 'failed').length,
     progress: targets.length > 0 ? Math.round(((targets.filter(t => t.status === 'completed').length + targets.filter(t => t.status === 'failed').length) / targets.length) * 100) : 0,
-  };
+  }), [targets]);
 
   const completedTargets = targets.filter(t => t.status === 'completed');
   const categoryStats = completedTargets.reduce((acc, t) => {
@@ -1226,7 +1286,7 @@ export default function App() {
         </header>
 
         <div className="space-y-6">
-            {stats.total > 0 && (
+            {(stats.total > 0 || crawlState === 'running') && (
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-slate-600 dark:text-slate-300">{t.progress} ({crawlState})</span>
@@ -1450,6 +1510,67 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Deep Crawl Section */}
+                  <div className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-b border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Network className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">{t.deepCrawlSettings}</span>
+                    </div>
+                    <div className="flex gap-2 items-center flex-wrap">
+                      <input
+                        type="url"
+                        value={deepCrawlUrl}
+                        onChange={(e) => setDeepCrawlUrl(e.target.value)}
+                        placeholder={language === 'zh' ? '输入起始URL...' : 'Enter starting URL...'}
+                        className="flex-1 min-w-[200px] px-3 py-1.5 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleDeepCrawl(); } }}
+                      />
+                      <select
+                        value={deepCrawlStrategy}
+                        onChange={(e) => setDeepCrawlStrategy(e.target.value as 'bfs' | 'dfs' | 'best_first')}
+                        className="px-2 py-1.5 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                      >
+                        <option value="bfs">BFS</option>
+                        <option value="dfs">DFS</option>
+                        <option value="best_first">Best First</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={deepCrawlDepth}
+                        onChange={(e) => setDeepCrawlDepth(parseInt(e.target.value) || 2)}
+                        min={1}
+                        max={5}
+                        className="w-16 px-2 py-1.5 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                        title={t.maxDepth}
+                      />
+                      <span className="text-xs text-slate-500">层</span>
+                      <input
+                        type="number"
+                        value={deepCrawlMaxPages}
+                        onChange={(e) => setDeepCrawlMaxPages(parseInt(e.target.value) || 10)}
+                        min={1}
+                        max={100}
+                        className="w-16 px-2 py-1.5 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                        title={t.maxPages}
+                      />
+                      <span className="text-xs text-slate-500">页</span>
+                      <button 
+                        onClick={handleDeepCrawl} 
+                        disabled={isDeepCrawling || !deepCrawlUrl || !backendConfig.enabled}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg text-sm inline-flex items-center gap-2"
+                      >
+                        <Network className="w-4 h-4" />
+                        {isDeepCrawling ? t.deepCrawling : t.startDeepCrawl}
+                      </button>
+                    </div>
+                    {deepCrawlResults.length > 0 && (
+                      <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                        {language === 'zh' ? `已爬取 ${deepCrawlResults.length} 个页面` : `Crawled ${deepCrawlResults.length} pages`}
+                      </div>
+                    )}
+                  </div>
+                  
                   <div className="flex gap-2 items-center">
                     <div className="flex-1">
                       <input
