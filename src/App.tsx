@@ -2079,8 +2079,11 @@ export default function App() {
                 <div className="pt-2 border-t border-t-slate-200 dark:border-t-slate-700">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{language === 'zh' ? 'LLM模型测试' : 'LLM Model Test'}</label>
                   <div className="space-y-2">
+                    {selectedProvider.startsWith('ollama') && (
+                      <input type="text" id="llmBaseUrl" placeholder={language === 'zh' ? 'Ollama地址 (如 http://localhost:11434)' : 'Ollama URL (e.g. http://localhost:11434)'} defaultValue="http://localhost:11434" className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
+                    )}
                     <div className="flex gap-2">
-                      <select id="llmProvider" value={selectedProvider} onChange={async (e) => { const v = e.target.value; setSelectedProvider(v); setLoadingModels(true); try { const { getAvailableModels } = await import('./utils/api'); const baseUrl = v.startsWith('ollama') ? (document.getElementById('llmBaseUrl') as HTMLInputElement)?.value || 'http://localhost:11434' : ''; const models = await getAvailableModels(baseUrl); setAvailableModels(models || {}); } catch {} setLoadingModels(false); }} className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700">
+                      <select id="llmProvider" value={selectedProvider} onChange={async (e) => { const v = e.target.value; setSelectedProvider(v); if (v.startsWith('ollama')) { setLoadingModels(true); try { const { getAvailableModels } = await import('./utils/api'); const baseUrl = (document.getElementById('llmBaseUrl') as HTMLInputElement)?.value || 'http://localhost:11434'; const models = await getAvailableModels(baseUrl); setAvailableModels(models || {}); } catch {} setLoadingModels(false); } }} className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700">
                         <optgroup label="OpenAI">
                           {(availableModels.openai && availableModels.openai.length > 0 ? availableModels.openai : ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo']).map(m => <option key={m} value={`openai/${m}`}>{m}</option>)}
                         </optgroup>
@@ -2091,16 +2094,13 @@ export default function App() {
                           {(availableModels.google && availableModels.google.length > 0 ? availableModels.google : ['gemini-1.5-flash', 'gemini-1.5-pro']).map(m => <option key={m} value={`google/${m}`}>{m}</option>)}
                         </optgroup>
                         <optgroup label="Ollama">
-                          {(availableModels.ollama && availableModels.ollama.length > 0 ? availableModels.ollama : ['llama2', 'mistral']).map(m => <option key={m} value="ollama">{m}</option>)}
+                          {(availableModels.ollama && availableModels.ollama.length > 0) ? availableModels.ollama.map(m => <option key={m} value="ollama">{m}</option>) : <option value="ollama">{language === 'zh' ? '未检测到模型' : 'No models detected'}</option>}
                         </optgroup>
                       </select>
-                      <button onClick={async () => { setLoadingModels(true); try { const { getAvailableModels } = await import('./utils/api'); const models = await getAvailableModels(); setAvailableModels(models || {}); addLog('success', language === 'zh' ? '已刷新模型列表' : 'Models refreshed'); } catch (err: any) { addLog('error', err.message); } setLoadingModels(false); }} className="px-2 py-1.5 bg-slate-200 dark:bg-slate-600 rounded text-xs" title={language === 'zh' ? '刷新模型' : 'Refresh'}>
+                      <button onClick={async () => { setLoadingModels(true); try { const { getAvailableModels } = await import('./utils/api'); const baseUrl = selectedProvider.startsWith('ollama') ? (document.getElementById('llmBaseUrl') as HTMLInputElement)?.value || 'http://localhost:11434' : ''; const models = await getAvailableModels(baseUrl); setAvailableModels(models || {}); addLog('success', language === 'zh' ? '已刷新模型列表' : 'Models refreshed'); } catch (err: any) { addLog('error', err.message); } setLoadingModels(false); }} className="px-2 py-1.5 bg-slate-200 dark:bg-slate-600 rounded text-xs" title={language === 'zh' ? '刷新模型' : 'Refresh'}>
                         <RefreshCw className={`w-3.5 h-3.5 ${loadingModels ? 'animate-spin' : ''}`} />
                       </button>
                     </div>
-                    {selectedProvider.startsWith('ollama') && (
-                      <input type="text" id="llmBaseUrl" placeholder={language === 'zh' ? 'Ollama地址 (如 http://localhost:11434)' : 'Ollama URL (e.g. http://localhost:11434)'} defaultValue="http://localhost:11434" className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
-                    )}
                     <input type="text" id="llmApiKey" placeholder={language === 'zh' ? 'API密钥 (可选)' : 'API Key (optional)'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
                     <input type="text" id="llmModel" placeholder={language === 'zh' ? '模型名称 (留空使用默认)' : 'Model (leave empty for default)'} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700" />
                     <button onClick={async () => {
