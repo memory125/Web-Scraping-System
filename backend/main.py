@@ -716,7 +716,34 @@ async def crawl_url(request: CrawlRequest):
                     error=str(e)
                 )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            # Fallback to HTTP-only mode if browser fails
+            try:
+                import httpx
+                from bs4 import BeautifulSoup
+                
+                async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    response = await client.get(request.url, headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    })
+                    
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    for script in soup(["script", "style"]):
+                        script.decompose()
+                    
+                    text = soup.get_text(separator='\n', strip=True)
+                    links = [a.get('href', '') for a in soup.find_all('a', href=True) if a.get('href', '').startswith('http')]
+                    images = [img.get('src', '') for img in soup.find_all('img') if img.get('src')]
+                    
+                    return CrawlResult(
+                        success=True,
+                        url=request.url,
+                        markdown=text[:100000],
+                        links=links[:100],
+                        images=images[:20],
+                        error=None
+                    )
+            except Exception as http_err:
+                raise HTTPException(status_code=500, detail=f"Browser failed: {str(e)}. HTTP fallback also failed: {str(http_err)}")
 
 # ============ Local File & Raw HTML Crawling ============
 
