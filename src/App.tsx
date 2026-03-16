@@ -1813,23 +1813,25 @@ export default function App() {
               {activeTab === 'queue' && showExportOptions && (
                 <div className="p-4 bg-slate-100 dark:bg-slate-750 border-b border-slate-200 dark:border-slate-700 space-y-3">
                   <div className="flex flex-wrap gap-2">
+                    {/* Markdown as default - first */}
+                    <button onClick={() => handleExportMarkdown()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white border border-purple-600 rounded-md text-xs font-medium transition-colors">
+                      <FileText className="w-3.5 h-3.5" /> Markdown
+                    </button>
+                    {/* Other formats */}
+                    <button onClick={() => handleExportExcel(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 border border-green-200 dark:border-green-700 rounded-md text-xs font-medium transition-colors">
+                      Excel
+                    </button>
                     <button onClick={() => handleExportResultsCSV(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800 border border-emerald-200 dark:border-emerald-700 rounded-md text-xs font-medium transition-colors">
-                      <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
+                      CSV
                     </button>
                     <button onClick={() => handleExportResultsCSV(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200 dark:hover:bg-emerald-700 border border-emerald-300 dark:border-emerald-600 rounded-md text-xs font-medium transition-colors">
                       CSV (Full)
                     </button>
                     <button onClick={() => handleExportResultsJSON(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700 rounded-md text-xs font-medium transition-colors">
-                      <FileJson className="w-3.5 h-3.5" /> JSON
+                      JSON
                     </button>
                     <button onClick={() => handleExportResultsJSON(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 border border-blue-300 dark:border-blue-600 rounded-md text-xs font-medium transition-colors">
                       JSON (Full)
-                    </button>
-                    <button onClick={() => handleExportExcel(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 border border-green-200 dark:border-green-700 rounded-md text-xs font-medium transition-colors">
-                      <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
-                    </button>
-                    <button onClick={() => handleExportMarkdown()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800 border border-purple-200 dark:border-purple-700 rounded-md text-xs font-medium transition-colors">
-                      Markdown
                     </button>
                   </div>
                 </div>
