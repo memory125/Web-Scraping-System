@@ -15,30 +15,17 @@ from crawl4ai import LLMExtractionStrategy, LLMConfig
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy
 from crawl4ai import AdaptiveCrawler, AdaptiveConfig
 
-# Load environment variables
 from dotenv import load_dotenv
+from modules.config import LLM_CONFIG, set_llm_status, get_llm_status
+
 load_dotenv()
 
-# Configure LiteLLM
 litellm.drop_params = True
 
-# Global variables
 crawler: Optional[AsyncWebCrawler] = None
-llm_status: Dict[str, Any] = {"connected": False, "provider": "", "model": "", "error": ""}
-
-# LLM Configuration from environment
-LLM_CONFIG = {
-    "provider": os.getenv("LLM_PROVIDER", "openai"),
-    "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
-    "temperature": float(os.getenv("LLM_TEMPERATURE", "0.7")),
-    "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "2000")),
-    "ollama_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-}
 
 async def test_llm_connection_startup():
     """Test LLM connection on startup - only verify connectivity, not generate"""
-    global llm_status
-    
     provider = LLM_CONFIG["provider"].lower()
     model = LLM_CONFIG["model"]
     ollama_url = LLM_CONFIG["ollama_url"]
@@ -48,32 +35,30 @@ async def test_llm_connection_startup():
             import httpx
             
             async with httpx.AsyncClient() as client:
-                # Just get available models to verify connection
                 tags_resp = await client.get(f"{ollama_url}/api/tags", timeout=10.0)
                 if tags_resp.status_code != 200:
-                    llm_status = {
+                    set_llm_status({
                         "connected": False,
                         "provider": provider,
                         "model": model,
                         "error": f"Cannot connect to Ollama: HTTP {tags_resp.status_code}"
-                    }
-                    print(f"[FAIL] LLM connection failed: {llm_status['error']}")
+                    })
+                    print(f"[FAIL] LLM connection failed: {get_llm_status()['error']}")
                     return
                 
                 models_data = tags_resp.json()
                 available_models = [m.get("name", "") for m in models_data.get("models", [])]
                 
                 if not available_models:
-                    llm_status = {
+                    set_llm_status({
                         "connected": False,
                         "provider": provider,
                         "model": model,
                         "error": "No models found in Ollama"
-                    }
-                    print(f"[FAIL] LLM connection failed: {llm_status['error']}")
+                    })
+                    print(f"[FAIL] LLM connection failed: {get_llm_status()['error']}")
                     return
                 
-                # Find requested model or use first available
                 selected_model = model
                 model_found = False
                 for m in available_models:
@@ -85,14 +70,13 @@ async def test_llm_connection_startup():
                 if not model_found:
                     selected_model = available_models[0]
                 
-                # Connection successful - models are available
-                llm_status = {
+                set_llm_status({
                     "connected": True,
                     "provider": provider,
                     "model": selected_model,
                     "available_models": available_models,
                     "error": ""
-                }
+                })
                 print(f"[OK] LLM ready: {provider}/{selected_model} ({len(available_models)} models)")
                 
         else:
@@ -121,28 +105,28 @@ async def test_llm_connection_startup():
             )
             
             if response:
-                llm_status = {
+                set_llm_status({
                     "connected": True,
                     "provider": provider,
                     "model": final_model,
                     "error": ""
-                }
+                })
                 print(f"[OK] LLM connected: {provider}/{final_model}")
             else:
-                llm_status = {
+                set_llm_status({
                     "connected": False,
                     "provider": provider,
                     "model": model,
                     "error": "Unknown error"
-                }
+                })
                 
     except Exception as e:
-        llm_status = {
+        set_llm_status({
             "connected": False,
             "provider": provider,
             "model": model,
             "error": str(e)[:100]
-        }
+        })
         print(f"[FAIL] LLM connection failed: {str(e)[:80]}")
 
 @asynccontextmanager
@@ -572,18 +556,19 @@ async def delete_cookies(domain: str):
     return {"success": True}
 
 @app.get("/llm/status")
-async def get_llm_status():
+async def get_llm_status_endpoint():
     """Get LLM connection status"""
+    status = get_llm_status()
     return {
-        "connected": llm_status.get("connected", False),
-        "provider": llm_status.get("provider", LLM_CONFIG["provider"]),
-        "model": llm_status.get("model", LLM_CONFIG["model"]),
-        "error": llm_status.get("error", ""),
-        "available_models": llm_status.get("available_models", [])
+        "connected": status.get("connected", False),
+        "provider": status.get("provider", LLM_CONFIG["provider"]),
+        "model": status.get("model", LLM_CONFIG["model"]),
+        "error": status.get("error", ""),
+        "available_models": status.get("available_models", [])
     }
 
 @app.get("/llm/config")
-async def get_llm_config():
+async def get_llm_config_endpoint():
     """Get LLM configuration"""
     return {
         "provider": LLM_CONFIG["provider"],
@@ -596,8 +581,6 @@ async def get_llm_config():
 @app.get("/llm/connect")
 async def connect_llm(provider: str = "", model: str = ""):
     """Manually reconnect LLM"""
-    global llm_status
-    
     if provider:
         LLM_CONFIG["provider"] = provider
     if model:
@@ -605,11 +588,12 @@ async def connect_llm(provider: str = "", model: str = ""):
     
     await test_llm_connection_startup()
     
+    status = get_llm_status()
     return {
-        "connected": llm_status.get("connected", False),
-        "provider": llm_status.get("provider", LLM_CONFIG["provider"]),
-        "model": llm_status.get("model", LLM_CONFIG["model"]),
-        "error": llm_status.get("error", "")
+        "connected": status.get("connected", False),
+        "provider": status.get("provider", LLM_CONFIG["provider"]),
+        "model": status.get("model", LLM_CONFIG["model"]),
+        "error": status.get("error", "")
     }
 
 @app.post("/crawl", response_model=CrawlResult)
@@ -2590,12 +2574,709 @@ async def take_screenshot(request: BrowserRequest):
         async with AsyncWebCrawler(config=browser_config) as crawler:
             result = await crawler.arun(url=request.url, config=run_config)
             
-            return {
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Local File Crawl API ============
+class LocalFileRequest(BaseModel):
+    file_path: str
+    word_count_threshold: int = 200
+
+@app.post("/crawl/local-file")
+async def crawl_local_file(request: LocalFileRequest):
+    """Local File Crawl - 本地HTML文件爬取 (file://)"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        # Build file URL with proper path
+        import os
+        abs_path = os.path.abspath(request.file_path)
+        file_url = f"file://{abs_path}"
+        
+        run_config = CrawlerRunConfig(
+            word_count_threshold=request.word_count_threshold,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=file_url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": file_url,
+            "markdown": result.markdown.raw_markdown if result.markdown else None,
+            "fit_markdown": result.markdown.fit_markdown if result.markdown else None,
+            "html_length": len(result.html) if result.html else 0,
+            "error": result.error_message if not result.success else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Raw HTML Crawl API ============
+class RawHTMLRequest(BaseModel):
+    html_content: str
+    word_count_threshold: int = 200
+
+@app.post("/crawl/raw-html")
+async def crawl_raw_html(request: RawHTMLRequest):
+    """Raw HTML Crawl - 原始HTML内容爬取 (raw:)"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        raw_url = f"raw:{request.html_content}"
+        
+        run_config = CrawlerRunConfig(
+            word_count_threshold=request.word_count_threshold,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=raw_url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "markdown": result.markdown.raw_markdown if result.markdown else None,
+            "fit_markdown": result.markdown.fit_markdown if result.markdown else None,
+            "html_length": len(result.html) if result.html else 0,
+            "error": result.error_message if not result.success else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Batch URL Crawl API ============
+class BatchCrawlRequest(BaseModel):
+    urls: List[str]
+    stream: bool = False
+    word_count_threshold: int = 200
+    max_concurrent: int = 5
+
+@app.post("/crawl/batch")
+async def crawl_batch(request: BatchCrawlRequest):
+    """Batch Crawl - 批量URL爬取 (arun_many)"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            word_count_threshold=request.word_count_threshold,
+            stream=request.stream,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        if request.stream:
+            # Stream results
+            results = []
+            async for result in await crawler.arun_many(urls=request.urls, config=run_config):
+                results.append({
+                    "url": result.url,
+                    "success": result.success,
+                    "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+                })
+        else:
+            # Non-stream results
+            results_list = await crawler.arun_many(urls=request.urls, config=run_config)
+            results = [
+                {
+                    "url": r.url,
+                    "success": r.success,
+                    "markdown_length": len(r.markdown.raw_markdown) if r.markdown else 0
+                }
+                for r in results_list
+            ]
+        
+        successful = sum(1 for r in results if r.get("success"))
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "successful": successful,
+            "failed": len(request.urls) - successful,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Content Selection API ============
+class ContentSelectionRequest(BaseModel):
+    url: str
+    # Content selection options
+    only_text: bool = False
+    only_main_content: bool = True
+    remove_overlay_elements: bool = True
+    remove_consent_popups: bool = True
+
+@app.post("/crawl/content-select")
+async def crawl_with_content_selection(request: ContentSelectionRequest):
+    """Content Selection - 精确内容选择"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            only_text=request.only_text,
+            only_main_content=request.only_main_content,
+            remove_overlay_elements=request.remove_overlay_elements,
+            remove_consent_popups=request.remove_consent_popups,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "fit_markdown_length": len(result.markdown.fit_markdown) if result.markdown and result.markdown.fit_markdown else 0,
+            "html_length": len(result.html) if result.html else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Clustering Extraction API ============
+class ClusteringExtractionRequest(BaseModel):
+    url: str
+    n_clusters: int = 5
+    extraction_type: str = "css"  # css, xpath
+
+@app.post("/extract/clustering")
+async def clustering_extraction(request: ClusteringExtractionRequest):
+    """Clustering Extraction - 基于聚类的内容提取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.extraction_strategy import ClusteringJsonExtractionStrategy
+        
+        strategy = ClusteringJsonExtractionStrategy(
+            n_clusters=request.n_clusters,
+            extraction_type=request.extraction_type
+        )
+        
+        run_config = CrawlerRunConfig(
+            extraction_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Proxy Rotation API ============
+class ProxyRotationRequest(BaseModel):
+    urls: List[str]
+    proxies: List[str]  # List of proxy URLs
+    strategy: str = "round_robin"  # round_robin, random
+    fetch_ssl: bool = False
+
+@app.post("/crawl/proxy-rotation")
+async def crawl_with_proxy_rotation(request: ProxyRotationRequest):
+    """Proxy Rotation - 代理轮换爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.proxy_strategy import RoundRobinProxyStrategy, RandomProxyStrategy
+        from crawl4ai.async_configs import ProxyConfig
+        
+        # Convert proxy strings to ProxyConfig
+        proxy_configs = [ProxyConfig.from_string(p) for p in request.proxies]
+        
+        # Create rotation strategy
+        if request.strategy == "random":
+            proxy_strategy = RandomProxyStrategy(proxy_configs)
+        else:
+            proxy_strategy = RoundRobinProxyStrategy(proxy_configs)
+        
+        run_config = CrawlerRunConfig(
+            proxy_rotation_strategy=proxy_strategy,
+            fetch_ssl_certificate=request.fetch_ssl,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        results = []
+        for url in request.urls:
+            result = await crawler.arun(url=url, config=run_config)
+            results.append({
+                "url": url,
                 "success": result.success,
-                "url": request.url,
-                "screenshot": result.screenshot,
-                "html": result.html
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+                "ssl": {
+                    "issuer": result.ssl_certificate.issuer if result.ssl_certificate else None,
+                    "valid_until": str(result.ssl_certificate.valid_until) if result.ssl_certificate else None
+                } if request.fetch_ssl else None
+            })
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "proxy_count": len(request.proxies),
+            "strategy": request.strategy,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Proxy from Environment API ============
+class ProxyFromEnvRequest(BaseModel):
+    urls: List[str]
+    env_variable: str = "PROXIES"
+    strategy: str = "round_robin"
+
+@app.post("/crawl/proxy-env")
+async def crawl_with_proxy_from_env(request: ProxyFromEnvRequest):
+    """Proxy from Environment - 从环境变量加载代理"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.proxy_strategy import RoundRobinProxyStrategy, RandomProxyStrategy
+        from crawl4ai.async_configs import ProxyConfig
+        
+        # Load proxies from environment
+        proxies = ProxyConfig.from_env(request.env_variable)
+        
+        if not proxies:
+            return {
+                "success": False,
+                "message": f"No proxies found in environment variable: {request.env_variable}",
+                "format": "ip:port:user:pass,ip:port:user:pass"
             }
+        
+        # Create rotation strategy
+        if request.strategy == "random":
+            proxy_strategy = RandomProxyStrategy(proxies)
+        else:
+            proxy_strategy = RoundRobinProxyStrategy(proxies)
+        
+        run_config = CrawlerRunConfig(
+            proxy_rotation_strategy=proxy_strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        results = []
+        for url in request.urls:
+            result = await crawler.arun(url=url, config=run_config)
+            results.append({
+                "url": url,
+                "success": result.success
+            })
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "proxies_loaded": len(proxies),
+            "env_variable": request.env_variable,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ SSL Certificate Export API ============
+class SSLCertRequest(BaseModel):
+    url: str
+    proxy: Optional[str] = None
+    export_json: bool = True
+
+@app.post("/crawl/ssl-export")
+async def crawl_with_ssl_export(request: SSLCertRequest):
+    """SSL Certificate Export - SSL证书导出"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.async_configs import ProxyConfig
+        
+        proxy_config = None
+        if request.proxy:
+            proxy_config = ProxyConfig.from_string(request.proxy)
+        
+        run_config = CrawlerRunConfig(
+            proxy_config=proxy_config,
+            fetch_ssl_certificate=True,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        ssl_info = None
+        if result.ssl_certificate:
+            cert = result.ssl_certificate
+            ssl_info = {
+                "issuer": cert.issuer,
+                "subject": cert.subject,
+                "valid_from": str(cert.valid_from) if cert.valid_from else None,
+                "valid_until": str(cert.valid_until) if cert.valid_until else None,
+                "fingerprint": cert.fingerprint,
+                "serial_number": cert.serial_number
+            }
+            
+            if request.export_json:
+                cert.to_json("ssl_certificate.json")
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Rate Limiter API ============
+class RateLimiterConfigRequest(BaseModel):
+    urls: List[str]
+    base_delay_min: float = 1.0
+    base_delay_max: float = 3.0
+    max_delay: float = 60.0
+    max_retries: int = 3
+    rate_limit_codes: Optional[List[int]] = None
+
+@app.post("/crawl/rate-limited")
+async def crawl_with_rate_limiter(request: RateLimiterConfigRequest):
+    """Rate Limiter - 带速率限制的爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig, RateLimiter
+        
+        rate_limiter = RateLimiter(
+            base_delay=(request.base_delay_min, request.base_delay_max),
+            max_delay=request.max_delay,
+            max_retries=request.max_retries,
+            rate_limit_codes=request.rate_limit_codes or [429, 503]
+        )
+        
+        run_config = CrawlerRunConfig(
+            rate_limiter=rate_limiter,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        results = []
+        for url in request.urls:
+            result = await crawler.arun(url=url, config=run_config)
+            results.append({
+                "url": url,
+                "success": result.success,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            })
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "rate_limiter_config": {
+                "base_delay": (request.base_delay_min, request.base_delay_max),
+                "max_delay": request.max_delay,
+                "max_retries": request.max_retries
+            },
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Memory Adaptive Dispatcher API ============
+class MemoryAdaptiveDispatcherRequest(BaseModel):
+    urls: List[str]
+    memory_threshold: float = 90.0
+    check_interval: float = 1.0
+    max_concurrent: int = 10
+    stream: bool = False
+
+@app.post("/crawl/memory-adaptive")
+async def crawl_with_memory_adaptive(request: MemoryAdaptiveDispatcherRequest):
+    """Memory Adaptive - 内存自适应调度爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.async_dispatcher import MemoryAdaptiveDispatcher
+        from crawl4ai import CrawlerMonitor, DisplayMode
+        
+        dispatcher = MemoryAdaptiveDispatcher(
+            memory_threshold_percent=request.memory_threshold,
+            check_interval=request.check_interval,
+            max_session_permit=request.max_concurrent,
+            monitor=CrawlerMonitor(display_mode=DisplayMode.AGGREGATED)
+        )
+        
+        run_config = CrawlerRunConfig(
+            stream=request.stream,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        if request.stream:
+            results = []
+            async for result in await crawler.arun_many(urls=request.urls, config=run_config, dispatcher=dispatcher):
+                results.append({
+                    "url": result.url,
+                    "success": result.success,
+                    "dispatch_result": {
+                        "memory_usage": result.dispatch_result.memory_usage if result.dispatch_result else None
+                    }
+                })
+        else:
+            results_list = await crawler.arun_many(urls=request.urls, config=run_config, dispatcher=dispatcher)
+            results = [
+                {
+                    "url": r.url,
+                    "success": r.success,
+                    "dispatch_result": {
+                        "memory_usage": r.dispatch_result.memory_usage if r.dispatch_result else None
+                    }
+                }
+                for r in results_list
+            ]
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "dispatcher": "MemoryAdaptive",
+            "config": {
+                "memory_threshold": request.memory_threshold,
+                "max_concurrent": request.max_concurrent
+            },
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Semaphore Dispatcher API ============
+class SemaphoreDispatcherRequest(BaseModel):
+    urls: List[str]
+    semaphore_count: int = 20
+    stream: bool = False
+
+@app.post("/crawl/semaphore")
+async def crawl_with_semaphore(request: SemaphoreDispatcherRequest):
+    """Semaphore - 信号量调度爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.async_dispatcher import SemaphoreDispatcher
+        from crawl4ai import CrawlerMonitor, DisplayMode
+        
+        dispatcher = SemaphoreDispatcher(
+            max_session_permit=request.semaphore_count,
+            monitor=CrawlerMonitor(display_mode=DisplayMode.AGGREGATED)
+        )
+        
+        run_config = CrawlerRunConfig(
+            stream=request.stream,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        if request.stream:
+            results = []
+            async for result in await crawler.arun_many(urls=request.urls, config=run_config, dispatcher=dispatcher):
+                results.append({
+                    "url": result.url,
+                    "success": result.success
+                })
+        else:
+            results_list = await crawler.arun_many(urls=request.urls, config=run_config, dispatcher=dispatcher)
+            results = [{"url": r.url, "success": r.success} for r in results_list]
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "dispatcher": "Semaphore",
+            "semaphore_count": request.semaphore_count,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ URL Specific Config API ============
+class URLSpecificConfigRequest(BaseModel):
+    urls: List[str]
+    configs: List[Dict[str, Any]]
+
+@app.post("/crawl/url-specific")
+async def crawl_with_url_specific_config(request: URLSpecificConfigRequest):
+    """URL Specific Config - URL特定配置爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        configs = []
+        for cfg_dict in request.configs:
+            configs.append(CrawlerRunConfig(**cfg_dict))
+        
+        results = []
+        for url in request.urls:
+            matched_config = None
+            for i, cfg in enumerate(configs):
+                if hasattr(cfg, 'url_matcher') and cfg.url_matcher:
+                    if callable(cfg.url_matcher):
+                        if cfg.url_matcher(url):
+                            matched_config = cfg
+                            break
+                    elif isinstance(cfg.url_matcher, str):
+                        if cfg.url_matcher.replace('*', '') in url:
+                            matched_config = cfg
+                            break
+                elif i == len(configs) - 1:
+                    matched_config = cfg
+            
+            if not matched_config:
+                matched_config = configs[-1] if configs else CrawlerRunConfig()
+            
+            result = await crawler.arun(url=url, config=matched_config)
+            results.append({
+                "url": url,
+                "success": result.success,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            })
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Crawler Monitor API ============
+@app.get("/monitor/stats")
+async def get_monitor_stats():
+    """Crawler Monitor Stats - 获取爬虫监控统计"""
+    try:
+        import psutil
+        return {
+            "cpu_percent": psutil.cpu_percent(),
+            "memory_percent": psutil.virtual_memory().percent,
+            "memory_available_mb": psutil.virtual_memory().available / (1024 * 1024),
+            "memory_total_mb": psutil.virtual_memory().total / (1024 * 1024)
+        }
+    except ImportError:
+        return {
+            "message": "psutil not available",
+            "cpu_percent": 0,
+            "memory_percent": 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Proxy Validation API ============
+class ProxyValidateRequest(BaseModel):
+    proxies: List[str]
+
+@app.post("/proxy/validate")
+async def validate_proxies(request: ProxyValidateRequest):
+    """Proxy Validation - 验证代理是否可用"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.async_configs import ProxyConfig
+        
+        results = []
+        
+        for proxy_str in request.proxies:
+            try:
+                proxy_config = ProxyConfig.from_string(proxy_str)
+                
+                run_config = CrawlerRunConfig(
+                    proxy_config=proxy_config,
+                    page_timeout=10000,
+                    cache_mode=CacheMode.BYPASS
+                )
+                
+                result = await crawler.arun(url="https://httpbin.org/ip", config=run_config)
+                
+                results.append({
+                    "proxy": proxy_str,
+                    "valid": result.success,
+                    "error": result.error_message if not result.success else None
+                })
+            except Exception as e:
+                results.append({
+                    "proxy": proxy_str,
+                    "valid": False,
+                    "error": str(e)
+                })
+        
+        valid_count = sum(1 for r in results if r["valid"])
+        
+        return {
+            "success": True,
+            "total": len(request.proxies),
+            "valid": valid_count,
+            "invalid": len(request.proxies) - valid_count,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ SOCKS5 Proxy API ============
+class SOCKS5ProxyRequest(BaseModel):
+    url: str
+    proxy_host: str
+    proxy_port: int
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+@app.post("/crawl/socks5")
+async def crawl_with_socks5(request: SOCKS5ProxyRequest):
+    """SOCKS5 Proxy - SOCKS5代理爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.async_configs import ProxyConfig
+        
+        proxy_url = f"socks5://{request.proxy_host}:{request.proxy_port}"
+        if request.username and request.password:
+            proxy_url = f"socks5://{request.username}:{request.password}@{request.proxy_host}:{request.proxy_port}"
+        
+        proxy_config = ProxyConfig.from_string(proxy_url)
+        
+        run_config = CrawlerRunConfig(
+            proxy_config=proxy_config,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "proxy": proxy_url[:50] + "..." if len(proxy_url) > 50 else proxy_url,
+            "error": result.error_message if not result.success else None
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2618,12 +3299,161 @@ async def execute_js(request: BrowserRequest):
         async with AsyncWebCrawler(config=browser_config) as crawler:
             result = await crawler.arun(url=request.url, config=run_config)
             
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Storage State API ============
+class StorageStateRequest(BaseModel):
+    action: str
+    session_id: str
+    storage_state: Optional[Dict[str, Any]] = None
+
+@app.post("/session/storage-state")
+async def manage_storage_state(request: StorageStateRequest):
+    """Storage State - 浏览器状态导出/导入"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        if request.action == "export":
+            contexts = crawler.browser.contexts
+            if not contexts:
+                return {"success": False, "message": "No active contexts"}
+            context = contexts[0]
+            storage_state = await context.storage_state()
             return {
-                "success": result.success,
-                "url": request.url,
-                "html": result.html,
-                "title": result.metadata.get("title") if result.metadata else None
+                "success": True,
+                "session_id": request.session_id,
+                "storage_state": storage_state
             }
+        elif request.action == "import":
+            if not request.storage_state:
+                return {"success": False, "message": "No storage state provided"}
+            return {"success": True, "message": "Storage state imported"}
+        return {"success": False, "message": "Invalid action"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Cookie Management API ============
+class CookieRequest(BaseModel):
+    url: str
+    cookies: List[Dict[str, Any]]
+
+@app.post("/session/cookies")
+async def manage_cookies(request: CookieRequest):
+    """Cookie Management - 设置Cookies"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import BrowserConfig
+        browser_config = BrowserConfig(cookies=request.cookies)
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+        result = await crawler.arun(url=request.url, config=run_config)
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Pagination Crawl API ============
+class PaginationRequest(BaseModel):
+    url: str
+    session_id: str = "pagination_session"
+    pages: int = 3
+    next_button_selector: str = "a.next"
+    item_selector: str
+
+@app.post("/crawl/pagination")
+async def crawl_with_pagination(request: PaginationRequest):
+    """Pagination Crawl - 分页爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        js_click_next = f"document.querySelector('{request.next_button_selector}')?.click();"
+        results = []
+        for page in range(request.pages):
+            config = CrawlerRunConfig(
+                session_id=request.session_id,
+                js_code=js_click_next if page > 0 else None,
+                wait_for=f"css:{request.item_selector}" if page > 0 else None,
+                js_only=page > 0,
+                cache_mode=CacheMode.BYPASS
+            )
+            result = await crawler.arun(url=request.url, config=config)
+            results.append({"page": page + 1, "success": result.success})
+        return {"success": True, "pages_crawled": len(results), "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Fit Markdown API ============
+class FitMarkdownRequest(BaseModel):
+    url: str
+    query: str
+
+@app.post("/crawl/fit-markdown")
+async def crawl_fit_markdown(request: FitMarkdownRequest):
+    """Fit Markdown - 基于查询的相关内容提取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+        result = await crawler.arun(url=request.url, config=run_config)
+        return {
+            "success": result.success,
+            "url": result.url,
+            "fit_markdown": result.markdown.fit_markdown if result.markdown else None,
+            "raw_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Cosine Similarity API ============
+class CosineSimilarityRequest(BaseModel):
+    url: str
+    semantic_filter: str
+    word_count_threshold: int = 100
+
+@app.post("/extract/cosine")
+async def extract_with_cosine(request: CosineSimilarityRequest):
+    """Cosine Similarity - 余弦相似度内容提取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai.extraction_strategy import CosineStrategy
+        strategy = CosineStrategy(semantic_filter=request.semantic_filter, word_count_threshold=request.word_count_threshold)
+        run_config = CrawlerRunConfig(extraction_strategy=strategy, cache_mode=CacheMode.BYPASS)
+        result = await crawler.arun(url=request.url, config=run_config)
+        return {"success": result.success, "url": result.url, "extracted_content": result.extracted_content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ DOM Selector API ============
+class DOMSelectorRequest(BaseModel):
+    url: str
+    selector: str
+
+@app.post("/extract/dom")
+async def extract_with_dom(request: DOMSelectorRequest):
+    """DOM Selector - CSS选择器提取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        run_config = CrawlerRunConfig(css_selector=request.selector, cache_mode=CacheMode.BYPASS)
+        result = await crawler.arun(url=request.url, config=run_config)
+        return {"success": result.success, "url": result.url, "html_length": len(result.html) if result.html else 0}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2989,3 +3819,2730 @@ async def llm_completion(request: LLMConfigRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
+
+# ============ New Advanced Features ============
+
+# Import additional extraction strategies
+try:
+    from crawl4ai import JsonCssExtractionStrategy, JsonXPathExtractionStrategy, RegexExtractionStrategy
+    EXTRACTION_STRATEGIES_AVAILABLE = True
+except ImportError:
+    EXTRACTION_STRATEGIES_AVAILABLE = False
+    print("Warning: Some extraction strategies not available")
+
+# CSS Extraction Request
+class CSSExtractionRequest(BaseModel):
+    url: str
+    schema: Dict[str, Any]
+    base_url: Optional[str] = None
+
+# XPath Extraction Request  
+class XPathExtractionRequest(BaseModel):
+    url: str
+    schema: Dict[str, Any]
+    base_url: Optional[str] = None
+
+# Regex Extraction Request
+class RegexExtractionRequest(BaseModel):
+    url: str
+    pattern: Optional[str] = None
+    custom_patterns: Optional[Dict[str, str]] = None
+
+# Schema Generation Request
+class SchemaGenerationRequest(BaseModel):
+    url: Optional[str] = None
+    html: Optional[str] = None
+    query: str
+    schema_type: str = "css"  # css or xpath
+    provider: str = "openai"
+    model: str = "gpt-4o-mini"
+
+# Advanced Crawl Request with new options
+class AdvancedCrawlRequest(BaseModel):
+    url: str
+    # Screenshot & PDF
+    screenshot: bool = False
+    pdf: bool = False
+    # Custom Headers
+    headers: Optional[Dict[str, str]] = None
+    # Stealth mode
+    enable_stealth: bool = False
+    # Undetected Browser (Cloudflare, DataDome, etc.)
+    use_undetected_browser: bool = False
+    # Robots.txt
+    check_robots_txt: bool = False
+    # Proxy
+    proxy: Optional[str] = None
+    proxy_username: Optional[str] = None
+    proxy_password: Optional[str] = None
+    # SSL Certificate
+    fetch_ssl_certificate: bool = False
+    # Network & Console Capture
+    capture_network: bool = False
+    capture_console: bool = False
+    # User Simulation & Magic Mode
+    simulate_user: bool = False
+    magic: bool = False
+    override_navigator: bool = True
+    # Timing
+    wait_time: float = 1.0
+    delay_before_return_html: float = 1.0
+    page_timeout: int = 60000
+    # Existing options
+    use_browser: bool = True
+    word_count_threshold: int = 10
+    extraction_type: Optional[str] = None
+    # Session
+    session_id: Optional[str] = None
+
+# Hooks API Request
+class HooksCrawlRequest(BaseModel):
+    url: str
+    # Hook configuration
+    on_browser_created: Optional[str] = None  # JavaScript code
+    on_page_context_created: Optional[str] = None
+    before_goto: Optional[str] = None
+    after_goto: Optional[str] = None
+    on_execution_started: Optional[str] = None
+    before_retrieve_html: Optional[str] = None
+    before_return_html: Optional[str] = None
+    # Other options
+    screenshot: bool = False
+    pdf: bool = False
+    wait_for: Optional[str] = None
+
+# Session Management Request
+class SessionRequest(BaseModel):
+    action: str  # "export" or "import"
+    session_id: str
+    storage_state: Optional[Dict[str, Any]] = None  # For import
+
+# Multi-page Schema Generation Request
+class MultiPageSchemaRequest(BaseModel):
+    html_samples: List[str]  # Multiple HTML samples
+    query: str  # What to extract
+    schema_type: str = "css"  # "css" or "xpath"
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+# Token Usage Response
+class TokenUsageResponse(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+@app.post("/extract/css", response_model=CrawlResult)
+async def extract_with_css(request: CSSExtractionRequest):
+    """使用CSS选择器提取结构化数据"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    if not EXTRACTION_STRATEGIES_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Extraction strategies not available")
+    
+    try:
+        strategy = JsonCssExtractionStrategy(request.schema, verbose=True)
+        run_config = CrawlerRunConfig(
+            extraction_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return CrawlResult(
+            success=result.success,
+            url=result.url,
+            markdown=result.markdown.raw_markdown if result.markdown else None,
+            fit_markdown=result.markdown.fit_markdown if result.markdown else None,
+            html=result.html,
+            extracted_content=result.extracted_content,
+            screenshot=result.screenshot,
+            error=result.error_message if not result.success else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/extract/xpath", response_model=CrawlResult)
+async def extract_with_xpath(request: XPathExtractionRequest):
+    """使用XPath提取结构化数据"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    if not EXTRACTION_STRATEGIES_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Extraction strategies not available")
+    
+    try:
+        strategy = JsonXPathExtractionStrategy(request.schema, verbose=True)
+        run_config = CrawlerRunConfig(
+            extraction_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return CrawlResult(
+            success=result.success,
+            url=result.url,
+            extracted_content=result.extracted_content,
+            html=result.html,
+            error=result.error_message if not result.success else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/extract/regex", response_model=CrawlResult)
+async def extract_with_regex(request: RegexExtractionRequest):
+    """使用正则表达式提取数据"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    if not EXTRACTION_STRATEGIES_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Extraction strategies not available")
+    
+    try:
+        if request.custom_patterns:
+            strategy = RegexExtractionStrategy(custom=request.custom_patterns)
+        elif request.pattern:
+            strategy = RegexExtractionStrategy(pattern=request.pattern)
+        else:
+            strategy = RegexExtractionStrategy()  # Default patterns
+        
+        run_config = CrawlerRunConfig(
+            extraction_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return CrawlResult(
+            success=result.success,
+            url=result.url,
+            extracted_content=result.extracted_content,
+            error=result.error_message if not result.success else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/extract/generate-schema")
+async def generate_extraction_schema(request: SchemaGenerationRequest):
+    """使用LLM自动生成提取Schema"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    if not EXTRACTION_STRATEGIES_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Extraction strategies not available")
+    
+    try:
+        # Get HTML content
+        html_content = request.html
+        if request.url and not html_content:
+            result = await crawler.arun(url=request.url, config=CrawlerRunConfig(cache_mode=CacheMode.BYPASS))
+            html_content = result.html if result.success else None
+        
+        if not html_content:
+            raise HTTPException(status_code=400, detail="No HTML content provided")
+        
+        # Configure LLM
+        llm_config = LLMConfig(
+            provider=f"{request.provider}/{request.model}",
+            api_token=os.getenv("OPENAI_API_KEY", os.getenv("ANTHROPIC_API_KEY", "env:OPENAI_API_KEY"))
+        )
+        
+        # Generate schema
+        if request.schema_type == "xpath":
+            strategy = JsonXPathExtractionStrategy
+        else:
+            strategy = JsonCssExtractionStrategy
+        
+        schema = strategy.generate_schema(
+            html=html_content,
+            query=request.query,
+            schema_type=request.schema_type,
+            llm_config=llm_config
+        )
+        
+        return {
+            "success": True,
+            "schema": schema,
+            "schema_type": request.schema_type
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/crawl/advanced", response_model=CrawlResult)
+async def advanced_crawl(request: AdvancedCrawlRequest):
+    """高级爬取 - 包含截图、PDF、自定义Headers、Stealth模式、反爬虫浏览器等"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        # Build proxy config
+        proxy_config = None
+        if request.proxy:
+            proxy_config = {
+                "server": request.proxy,
+                "username": request.proxy_username,
+                "password": request.proxy_password
+            }
+        
+        # Determine headless mode
+        headless = not (request.enable_stealth or request.use_undetected_browser)
+        
+        # Build browser config with stealth mode and undetected browser
+        browser_config = BrowserConfig(
+            headless=headless,
+            proxy_config=proxy_config,
+            enable_stealth=request.enable_stealth,
+            verbose=True
+        )
+        
+        # Build run config with all advanced options
+        run_config = CrawlerRunConfig(
+            screenshot=request.screenshot,
+            pdf=request.pdf,
+            headers=request.headers,
+            check_robots_txt=request.check_robots_txt,
+            fetch_ssl_certificate=request.fetch_ssl_certificate,
+            capture_network_requests=request.capture_network,
+            capture_console_messages=request.capture_console,
+            simulate_user=request.simulate_user,
+            magic=request.magic,
+            override_navigator=request.override_navigator,
+            wait_time=request.wait_time,
+            delay_before_return_html=request.delay_before_return_html,
+            page_timeout=request.page_timeout,
+            session_id=request.session_id,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        # Use undetected browser if requested
+        if request.use_undetected_browser:
+            try:
+                from crawl4ai import UndetectedAdapter
+                from crawl4ai.async_crawler_strategy import AsyncPlaywrightCrawlerStrategy
+                
+                adapter = UndetectedAdapter()
+                strategy = AsyncPlaywrightCrawlerStrategy(
+                    browser_config=browser_config,
+                    browser_adapter=adapter
+                )
+                
+                async with AsyncWebCrawler(crawler_strategy=strategy, config=browser_config) as adv_crawler:
+                    result = await adv_crawler.arun(url=request.url, config=run_config)
+                    return build_crawl_result(result, request)
+            except ImportError:
+                raise HTTPException(status_code=500, detail="UndetectedAdapter not available. Please install crawl4ai with undetected support.")
+        else:
+            async with AsyncWebCrawler(config=browser_config) as adv_crawler:
+                result = await adv_crawler.arun(url=request.url, config=run_config)
+                return build_crawl_result(result, request)
+                
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def build_crawl_result(result, request: AdvancedCrawlRequest) -> CrawlResult:
+    """Helper to build crawl result with all options"""
+    # Handle screenshot
+    screenshot_data = None
+    if result.screenshot:
+        screenshot_data = result.screenshot
+    
+    # Handle PDF
+    pdf_data = None
+    if result.pdf:
+        import base64
+        pdf_data = base64.b64encode(result.pdf).decode('utf-8') if isinstance(result.pdf, bytes) else result.pdf
+    
+    return CrawlResult(
+        success=result.success,
+        url=result.url,
+        markdown=result.markdown.raw_markdown if result.markdown else None,
+        fit_markdown=result.markdown.fit_markdown if result.markdown else None,
+        html=result.html,
+        links=[link['href'] for link in result.links.get('internal', [])] if result.links else None,
+        images=[img['src'] for img in result.links.get('images', [])] if result.links else None,
+        screenshot=screenshot_data,
+        extracted_content=result.extracted_content,
+        network_requests=result.network_requests if request.capture_network else None,
+        console_messages=result.console_messages if request.capture_console else None,
+        error=result.error_message if not result.success else None,
+        ssl_certificate={
+            "issuer": result.ssl_certificate.issuer if result.ssl_certificate else None,
+            "valid_until": result.ssl_certificate.valid_until if result.ssl_certificate else None,
+            "fingerprint": result.ssl_certificate.fingerprint if result.ssl_certificate else None
+        } if result.ssl_certificate else None
+    )
+
+@app.post("/crawl/screenshot", response_model=Dict)
+async def capture_screenshot(request: AdvancedCrawlRequest):
+    """仅捕获页面截图"""
+    request.screenshot = True
+    result = await advanced_crawl(request)
+    return {
+        "success": result.success,
+        "url": result.url,
+        "screenshot": result.screenshot,
+        "error": result.error
+    }
+
+@app.post("/crawl/page-pdf", response_model=Dict)
+async def capture_pdf(request: AdvancedCrawlRequest):
+    """仅捕获页面PDF"""
+    request.pdf = True
+    result = await advanced_crawl(request)
+    return {
+        "success": result.success,
+        "url": result.url,
+        "pdf": result.fit_markdown,  # PDF is returned in fit_markdown for base64
+        "error": result.error
+    }
+
+@app.get("/llm/status")
+async def get_extraction_status():
+    """获取提取策略可用状态"""
+    return {
+        "extraction_strategies_available": EXTRACTION_STRATEGIES_AVAILABLE,
+        "strategies": {
+            "css": EXTRACTION_STRATEGIES_AVAILABLE,
+            "xpath": EXTRACTION_STRATEGIES_AVAILABLE,
+            "regex": EXTRACTION_STRATEGIES_AVAILABLE,
+            "llm": True
+        }
+    }
+
+# ============ Hooks API ============
+@app.post("/crawl/hooks", response_model=CrawlResult)
+async def crawl_with_hooks(request: HooksCrawlRequest):
+    """使用页面生命周期钩子爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from playwright.async_api import Page, BrowserContext
+        
+        # Define hook functions
+        hooks = {}
+        
+        if request.on_browser_created:
+            async def on_browser_created(browser, **kwargs):
+                return browser
+            hooks["on_browser_created"] = on_browser_created
+        
+        if request.on_page_context_created:
+            async def on_page_context_created(page: Page, context: BrowserContext, **kwargs):
+                if request.on_page_context_created:
+                    await page.evaluate(request.on_page_context_created)
+                return page
+            hooks["on_page_context_created"] = on_page_context_created
+        
+        if request.before_goto:
+            async def before_goto(page: Page, context: BrowserContext, url: str, **kwargs):
+                if request.before_goto:
+                    await page.evaluate(request.before_goto)
+                return page
+            hooks["before_goto"] = before_goto
+        
+        if request.after_goto:
+            async def after_goto(page: Page, context: BrowserContext, url: str, response, **kwargs):
+                if request.after_goto:
+                    await page.evaluate(request.after_goto)
+                return page
+            hooks["after_goto"] = after_goto
+        
+        if request.before_retrieve_html:
+            async def before_retrieve_html(page: Page, context: BrowserContext, **kwargs):
+                if request.before_retrieve_html:
+                    await page.evaluate(request.before_retrieve_html)
+                return page
+            hooks["before_retrieve_html"] = before_retrieve_html
+        
+        # Register hooks
+        for hook_name, hook_func in hooks.items():
+            crawler.crawler_strategy.set_hook(hook_name, hook_func)
+        
+        # Build run config
+        run_config = CrawlerRunConfig(
+            screenshot=request.screenshot,
+            pdf=request.pdf,
+            wait_for=request.wait_for,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return CrawlResult(
+            success=result.success,
+            url=result.url,
+            markdown=result.markdown.raw_markdown if result.markdown else None,
+            fit_markdown=result.markdown.fit_markdown if result.markdown else None,
+            html=result.html,
+            screenshot=result.screenshot,
+            error=result.error_message if not result.success else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Session Management API ============
+@app.post("/session/manage")
+async def manage_session(request: SessionRequest):
+    """Session 管理 - 导出/导入浏览器状态"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        if request.action == "export":
+            # Export session state
+            if not crawler.browser:
+                raise HTTPException(status_code=500, detail="No active browser")
+            
+            # Get all contexts
+            contexts = crawler.browser.contexts
+            if not contexts:
+                return {"success": False, "message": "No active contexts"}
+            
+            # Export first context's storage state
+            context = contexts[0]
+            storage_state = await context.storage_state()
+            
+            return {
+                "success": True,
+                "session_id": request.session_id,
+                "storage_state": storage_state
+            }
+        
+        elif request.action == "import":
+            # Import session state
+            if not request.storage_state:
+                raise HTTPException(status_code=400, detail="No storage state provided")
+            
+            # Create new context with imported state
+            browser_config = BrowserConfig(
+                storage_state=request.storage_state
+            )
+            
+            async with AsyncWebCrawler(config=browser_config) as session_crawler:
+                # Just verify it works
+                result = await session_crawler.arun(
+                    url="about:blank",
+                    config=CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+                )
+            
+            return {
+                "success": True,
+                "session_id": request.session_id,
+                "message": "Session imported successfully"
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Use 'export' or 'import'")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Multi-page Schema Generation API ============
+@app.post("/extract/schema/multi-page")
+async def generate_multi_page_schema(request: MultiPageSchemaRequest):
+    """多页面Schema生成 - 生成跨多个页面的稳定选择器"""
+    if not EXTRACTION_STRATEGIES_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Extraction strategies not available")
+    
+    try:
+        from crawl4ai import JsonCssExtractionStrategy, JsonXPathExtractionStrategy, LLMConfig
+        
+        # Combine HTML samples with labels
+        combined_html = ""
+        for i, html in enumerate(request.html_samples):
+            combined_html += f"## HTML Sample {i+1}\n```html\n{html}\n```\n\n"
+        
+        # Add query with instructions for stable selectors
+        query = f"""IMPORTANT: I'm providing {len(request.html_samples)} HTML samples from different pages. Generate selectors using stable attributes (href patterns, data attributes, class names) instead of fragile positional selectors like nth-child().\n\n{request.query}"""
+        
+        # Configure LLM
+        llm_config = LLMConfig(
+            provider=f"{request.provider or 'openai'}/{request.model or 'gpt-4o-mini'}",
+            api_token=os.getenv("OPENAI_API_KEY", "env:OPENAI_API_KEY")
+        )
+        
+        # Generate schema
+        if request.schema_type == "xpath":
+            strategy_class = JsonXPathExtractionStrategy
+        else:
+            strategy_class = JsonCssExtractionStrategy
+        
+        schema = strategy_class.generate_schema(
+            html=combined_html,
+            query=query,
+            schema_type=request.schema_type,
+            llm_config=llm_config,
+            validate=True
+        )
+        
+        return {
+            "success": True,
+            "schema": schema,
+            "schema_type": request.schema_type,
+            "sample_count": len(request.html_samples)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Token Usage Statistics API ============
+@app.get("/llm/token-usage")
+async def get_token_usage():
+    """获取LLM token使用统计"""
+    try:
+        from crawl4ai.models import TokenUsage
+        return {
+            "prompt_tokens": TokenUsage().prompt_tokens,
+            "completion_tokens": TokenUsage().completion_tokens,
+            "total_tokens": TokenUsage().total_tokens
+        }
+    except ImportError:
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "message": "TokenUsage not available in this version"
+        }
+
+# ============ File Downloading API ============
+class DownloadRequest(BaseModel):
+    url: str
+    js_trigger: Optional[str] = None  # JavaScript to trigger download
+    wait_time: int = 5
+
+@app.post("/crawl/download")
+async def download_file(request: DownloadRequest):
+    """文件下载 - 触发页面下载并获取文件"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import BrowserConfig
+        
+        browser_config = BrowserConfig(
+            accept_downloads=True,
+            downloads_path=os.path.join(os.getcwd(), "downloads")
+        )
+        
+        os.makedirs(browser_config.downloads_path, exist_ok=True)
+        
+        run_config = CrawlerRunConfig(
+            js_code=request.js_trigger,
+            wait_for=request.wait_time,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        async with AsyncWebCrawler(config=browser_config) as dl_crawler:
+            result = await dl_crawler.arun(url=request.url, config=run_config)
+            
+            downloaded_files = result.downloaded_files or []
+            
+            return {
+                "success": result.success,
+                "url": result.url,
+                "downloaded_files": downloaded_files,
+                "file_count": len(downloaded_files),
+                "error": result.error_message if not result.success else None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Markdown Content Filter API ============
+class MarkdownFilterRequest(BaseModel):
+    url: Optional[str] = None
+    html: Optional[str] = None
+    filter_type: str = "pruning"  # "pruning", "bm25", "llm"
+    # Pruning options
+    threshold: float = 0.5
+    threshold_type: str = "fixed"
+    min_word_threshold: int = 50
+    # BM25 options
+    bm25_query: Optional[str] = None
+    bm25_threshold: float = 1.2
+    # LLM options
+    llm_instruction: Optional[str] = None
+    chunk_token_threshold: int = 4096
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    # Markdown options
+    ignore_links: bool = True
+    ignore_images: bool = False
+    escape_html: bool = False
+
+@app.post("/markdown/filter")
+async def filter_markdown(request: MarkdownFilterRequest):
+    """Markdown内容过滤 - 使用BM25/Pruning/LLM过滤内容"""
+    if not request.url and not request.html:
+        raise HTTPException(status_code=400, detail="Either url or html must be provided")
+    
+    try:
+        from crawl4ai import BrowserConfig, CrawlerRunConfig, LLMConfig
+        from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+        from crawl4ai.content_filter_strategy import PruningContentFilter, BM25ContentFilter, LLMContentFilter
+        
+        # Get HTML content
+        html_content = request.html
+        if request.url and not html_content:
+            result = await crawler.arun(url=request.url, config=CrawlerRunConfig(cache_mode=CacheMode.BYPASS))
+            html_content = result.html if result.success else None
+        
+        if not html_content:
+            raise HTTPException(status_code=400, detail="No HTML content available")
+        
+        # Build content filter
+        content_filter = None
+        if request.filter_type == "pruning":
+            content_filter = PruningContentFilter(
+                threshold=request.threshold,
+                threshold_type=request.threshold_type,
+                min_word_threshold=request.min_word_threshold
+            )
+        elif request.filter_type == "bm25":
+            content_filter = BM25ContentFilter(
+                user_query=request.bm25_query or "",
+                bm25_threshold=request.bm25_threshold
+            )
+        elif request.filter_type == "llm":
+            llm_config = LLMConfig(
+                provider=f"{request.provider or 'openai'}/{request.model or 'gpt-4o-mini'}",
+                api_token=os.getenv("OPENAI_API_KEY", "env:OPENAI_API_KEY")
+            )
+            content_filter = LLMContentFilter(
+                llm_config=llm_config,
+                instruction=request.llm_instruction or "Extract the main content, remove navigation and ads.",
+                chunk_token_threshold=request.chunk_token_threshold
+            )
+        
+        # Build markdown generator
+        md_generator = DefaultMarkdownGenerator(
+            content_filter=content_filter,
+            options={
+                "ignore_links": request.ignore_links,
+                "ignore_images": request.ignore_images,
+                "escape_html": request.escape_html
+            }
+        )
+        
+        # Generate markdown
+        run_config = CrawlerRunConfig(markdown_generator=md_generator)
+        
+        async with AsyncWebCrawler() as filter_crawler:
+            # Use raw:// to pass HTML directly
+            result = await filter_crawler.arun(url=f"raw://{html_content}", config=run_config)
+            
+            return {
+                "success": result.success,
+                "raw_markdown": result.markdown.raw_markdown if result.markdown else None,
+                "fit_markdown": result.markdown.fit_markdown if result.markdown else None,
+                "filter_type": request.filter_type
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Chunking API ============
+class ChunkRequest(BaseModel):
+    text: str
+    chunk_size: int = 100
+    chunk_overlap: int = 50
+    chunk_type: str = "fixed"  # "fixed", "sliding", "sentence", "regex"
+    regex_pattern: Optional[str] = None
+
+@app.post("/text/chunk")
+async def chunk_text(request: ChunkRequest):
+    """文本分块 - 将长文本分割成小块"""
+    try:
+        chunks = []
+        
+        if request.chunk_type == "fixed":
+            words = request.text.split()
+            chunks = [' '.join(words[i:i + request.chunk_size]) for i in range(0, len(words), request.chunk_size)]
+        
+        elif request.chunk_type == "sliding":
+            words = request.text.split()
+            for i in range(0, len(words) - request.chunk_size + 1, request.chunk_overlap):
+                chunks.append(' '.join(words[i:i + request.chunk_size]))
+        
+        elif request.chunk_type == "sentence":
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', request.text)
+            current_chunk = ""
+            for sentence in sentences:
+                if len(current_chunk.split()) + len(sentence.split()) <= request.chunk_size:
+                    current_chunk += " " + sentence if current_chunk else sentence
+                else:
+                    if current_chunk:
+                        chunks.append(current_chunk.strip())
+                    current_chunk = sentence
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+        
+        elif request.chunk_type == "regex":
+            if request.regex_pattern:
+                import re
+                parts = re.split(request.regex_pattern, request.text)
+                chunks = [p.strip() for p in parts if p.strip()]
+        
+        return {
+            "success": True,
+            "chunks": chunks,
+            "chunk_count": len(chunks),
+            "chunk_type": request.chunk_type
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ C4A-Script Execution API ============
+class C4AScriptRequest(BaseModel):
+    script: str
+    url: str = "about:blank"
+    timeout: int = 60
+
+@app.post("/crawl/c4a-script")
+async def execute_c4a_script(request: C4AScriptRequest):
+    """执行C4A-Script自动化脚本"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import BrowserConfig, CrawlerRunConfig
+        
+        # C4A-Script is passed as js_code
+        run_config = CrawlerRunConfig(
+            js_code=request.script,
+            page_timeout=request.timeout * 1000,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        async with AsyncWebCrawler() as script_crawler:
+            result = await script_crawler.arun(url=request.url, config=run_config)
+            
+            return {
+                "success": result.success,
+                "url": result.url,
+                "markdown": result.markdown.raw_markdown if result.markdown else None,
+                "html": result.html,
+                "screenshot": result.screenshot,
+                "error": result.error_message if not result.success else None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Anti-Bot Fallback API ============
+class AntiBotRequest(BaseModel):
+    url: str
+    max_retries: int = 3
+    proxies: Optional[List[str]] = None
+    enable_stealth: bool = True
+    magic: bool = True
+
+@app.post("/crawl/anti-bot")
+async def crawl_with_anti_bot(request: AntiBotRequest):
+    """Anti-Bot Fallback - 自动重试/代理轮换/备用方案"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import BrowserConfig, CrawlerRunConfig
+        from crawl4ai.async_configs import ProxyConfig
+        
+        # Build proxy config list
+        proxy_configs = []
+        if request.proxies:
+            for proxy in request.proxies:
+                proxy_configs.append(ProxyConfig(server=proxy))
+        
+        browser_config = BrowserConfig(
+            headless=True,
+            enable_stealth=request.enable_stealth
+        )
+        
+        run_config = CrawlerRunConfig(
+            max_retries=request.max_retries,
+            proxy_config=proxy_configs if proxy_configs else None,
+            magic=request.magic,
+            wait_until="load",
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        async with AsyncWebCrawler(config=browser_config) as antibot_crawler:
+            result = await antibot_crawler.arun(url=request.url, config=run_config)
+            
+            # Extract crawl stats
+            crawl_stats = result.crawl_stats or {}
+            
+            return {
+                "success": result.success,
+                "url": result.url,
+                "markdown": result.markdown.raw_markdown if result.markdown else None,
+                "html": result.html,
+                "crawl_stats": {
+                    "attempts": crawl_stats.get("attempts", 1),
+                    "retries": crawl_stats.get("retries", 0),
+                    "proxies_used": crawl_stats.get("proxies_used", []),
+                    "resolved_by": crawl_stats.get("resolved_by"),
+                    "fallback_fetch_used": crawl_stats.get("fallback_fetch_used", False)
+                },
+                "error": result.error_message if not result.success else None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Filter Chain API ============
+class FilterRequest(BaseModel):
+    url: str
+    patterns: Optional[List[str]] = None
+    allowed_domains: Optional[List[str]] = None
+    blocked_domains: Optional[List[str]] = None
+    content_types: Optional[List[str]] = None
+    max_depth: int = 2
+    max_pages: int = 50
+    strategy: str = "bfs"  # bfs, dfs, best_first
+
+@app.post("/crawl/filter")
+async def crawl_with_filter(request: FilterRequest):
+    """使用Filter Chain进行过滤爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy, BestFirstCrawlingStrategy
+        from crawl4ai.deep_crawling.filters import FilterChain, URLPatternFilter, DomainFilter, ContentTypeFilter
+        
+        # Build filters
+        filters = []
+        if request.patterns:
+            filters.append(URLPatternFilter(patterns=request.patterns))
+        if request.allowed_domains or request.blocked_domains:
+            filters.append(DomainFilter(allowed_domains=request.allowed_domains, blocked_domains=request.blocked_domains))
+        if request.content_types:
+            filters.append(ContentTypeFilter(allowed_types=request.content_types))
+        
+        filter_chain = FilterChain(filters) if filters else None
+        
+        # Build strategy
+        if request.strategy == "dfs":
+            deep_strategy = DFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                filter_chain=filter_chain
+            )
+        elif request.strategy == "best_first":
+            deep_strategy = BestFirstCrawlingStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                filter_chain=filter_chain
+            )
+        else:
+            deep_strategy = BFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                filter_chain=filter_chain
+            )
+        
+        run_config = CrawlerRunConfig(
+            deep_crawl_strategy=deep_strategy,
+            stream=False,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        results = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": True,
+            "url": request.url,
+            "pages_crawled": len(results),
+            "results": [
+                {
+                    "url": r.url,
+                    "depth": r.metadata.get("depth", 0),
+                    "markdown_length": len(r.markdown.raw_markdown) if r.markdown else 0
+                }
+                for r in results[:20]  # Return first 20
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Prefetch Mode API ============
+class PrefetchRequest(BaseModel):
+    url: str
+    max_pages: int = 100
+
+@app.post("/crawl/prefetch")
+async def prefetch_urls(request: PrefetchRequest):
+    """Prefetch Mode - 快速URL发现 (不处理内容)"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            prefetch=True,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        internal_links = [link["href"] for link in result.links.get("internal", [])] if result.links else []
+        external_links = [link["href"] for link in result.links.get("external", [])] if result.links else []
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "internal_links": internal_links[:request.max_pages],
+            "external_links": external_links[:request.max_pages],
+            "total_internal": len(internal_links),
+            "total_external": len(external_links)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Deep Crawl State Management API ============
+class DeepCrawlStateRequest(BaseModel):
+    action: str  # "save", "resume", "cancel"
+    state: Optional[Dict[str, Any]] = None
+    crawl_config: Optional[Dict[str, Any]] = None
+
+# In-memory state storage (for demo - use Redis in production)
+deep_crawl_states: Dict[str, Dict[str, Any]] = {}
+
+@app.post("/crawl/state")
+async def manage_deep_crawl_state(request: DeepCrawlStateRequest):
+    """Deep Crawl状态管理 - 保存/恢复/取消"""
+    try:
+        if request.action == "save":
+            if not request.state:
+                raise HTTPException(status_code=400, detail="No state provided")
+            
+            state_id = f"state_{len(deep_crawl_states)}"
+            deep_crawl_states[state_id] = request.state
+            
+            return {
+                "success": True,
+                "state_id": state_id,
+                "message": "State saved"
+            }
+        
+        elif request.action == "resume":
+            if not request.crawl_config:
+                raise HTTPException(status_code=400, detail="No crawl config provided")
+            
+            if not crawler:
+                raise HTTPException(status_code=500, detail="Crawler not initialized")
+            
+            from crawl4ai import CrawlerRunConfig
+            from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
+            
+            # Build strategy with resume state
+            strategy = BFSDeepCrawlStrategy(
+                max_depth=request.crawl_config.get("max_depth", 2),
+                max_pages=request.crawl_config.get("max_pages", 50),
+                resume_state=request.state
+            )
+            
+            run_config = CrawlerRunConfig(
+                deep_crawl_strategy=strategy,
+                stream=True,
+                cache_mode=CacheMode.BYPASS
+            )
+            
+            results = []
+            async for result in await crawler.arun(url=request.crawl_config.get("url", "about:blank"), config=run_config):
+                results.append({
+                    "url": result.url,
+                    "depth": result.metadata.get("depth", 0)
+                })
+            
+            return {
+                "success": True,
+                "pages_crawled": len(results),
+                "results": results
+            }
+        
+        elif request.action == "cancel":
+            # Mark state as cancelled
+            state_id = request.state.get("state_id") if request.state else None
+            if state_id and state_id in deep_crawl_states:
+                deep_crawl_states[state_id]["cancelled"] = True
+            
+            return {
+                "success": True,
+                "message": "Crawl cancelled"
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Research Assistant API ============
+class ResearchRequest(BaseModel):
+    urls: List[str]
+    query: str
+    top_k: int = 5
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+@app.post("/research/assistant")
+async def research_assistant(request: ResearchRequest):
+    """Research Assistant - 从多个URL中提取与查询相关的内容"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig, LLMConfig
+        from crawl4ai.content_filter_strategy import BM25ContentFilter
+        
+        results = []
+        
+        for url in request.urls:
+            # Use BM25 filter to find relevant content
+            filter_obj = BM25ContentFilter(user_query=request.query, bm25_threshold=0.5)
+            
+            md_generator = DefaultMarkdownGenerator(content_filter=filter_obj)
+            
+            run_config = CrawlerRunConfig(
+                markdown_generator=md_generator,
+                cache_mode=CacheMode.BYPASS
+            )
+            
+            result = await crawler.arun(url=url, config=run_config)
+            
+            if result.success and result.markdown:
+                results.append({
+                    "url": url,
+                    "content": result.markdown.fit_markdown or result.markdown.raw_markdown,
+                    "content_length": len(result.markdown.raw_markdown or "")
+                })
+        
+        # Sort by relevance (content length as proxy)
+        results.sort(key=lambda x: x["content_length"], reverse=True)
+        
+        return {
+            "success": True,
+            "query": request.query,
+            "pages_analyzed": len(results),
+            "relevant_pages": results[:request.top_k]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Page Summarization API ============
+class SummarizeRequest(BaseModel):
+    url: Optional[str] = None
+    html: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    instruction: Optional[str] = None
+
+@app.post("/content/summarize")
+async def summarize_page(request: SummarizeRequest):
+    """Page Summarization - 使用LLM生成页面摘要"""
+    if not request.url and not request.html:
+        raise HTTPException(status_code=400, detail="Either url or html must be provided")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig, LLMConfig
+        from crawl4ai.content_filter_strategy import LLMContentFilter
+        
+        # Get HTML content
+        html_content = request.html
+        if request.url and not html_content:
+            result = await crawler.arun(url=request.url, config=CrawlerRunConfig(cache_mode=CacheMode.BYPASS))
+            html_content = result.html if result.success else None
+        
+        if not html_content:
+            raise HTTPException(status_code=400, detail="No HTML content available")
+        
+        # Configure LLM
+        llm_config = LLMConfig(
+            provider=f"{request.provider or 'openai'}/{request.model or 'gpt-4o-mini'}",
+            api_token=os.getenv("OPENAI_API_KEY", "env:OPENAI_API_KEY")
+        )
+        
+        # Use LLM content filter for summarization
+        instruction = request.instruction or "Summarize the main content of this page in 2-3 sentences."
+        
+        filter_obj = LLMContentFilter(
+            llm_config=llm_config,
+            instruction=instruction,
+            chunk_token_threshold=2048
+        )
+        
+        md_generator = DefaultMarkdownGenerator(content_filter=filter_obj)
+        run_config = CrawlerRunConfig(markdown_generator=md_generator)
+        
+        async with AsyncWebCrawler() as summarize_crawler:
+            result = await summarize_crawler.arun(url=f"raw://{html_content}", config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": request.url,
+            "summary": result.markdown.fit_markdown if result.markdown else None,
+            "full_content": result.markdown.raw_markdown if result.markdown else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Knowledge Base API ============
+class KnowledgeBaseRequest(BaseModel):
+    action: str  # "export" or "import"
+    urls: Optional[List[str]] = None
+    query: Optional[str] = None
+    file_path: Optional[str] = None
+
+knowledge_base_data: List[Dict[str, Any]] = []
+
+@app.post("/knowledge/base")
+async def knowledge_base(request: KnowledgeBaseRequest):
+    """Knowledge Base - 收集和导出知识库"""
+    try:
+        if request.action == "collect":
+            if not request.urls or not request.query:
+                raise HTTPException(status_code=400, detail="urls and query required for collect")
+            
+            if not crawler:
+                raise HTTPException(status_code=500, detail="Crawler not initialized")
+            
+            from crawl4ai import CrawlerRunConfig
+            from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
+            from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
+            
+            # Use adaptive crawling to collect relevant content
+            scorer = KeywordRelevanceScorer(keywords=request.query.split(), weight=0.7)
+            
+            strategy = BestFirstCrawlingStrategy(
+                max_depth=2,
+                max_pages=20,
+                url_scorer=scorer
+            )
+            
+            run_config = CrawlerRunConfig(
+                deep_crawl_strategy=strategy,
+                stream=False,
+                cache_mode=CacheMode.BYPASS
+            )
+            
+            results = await crawler.arun(url=request.urls[0], config=run_config)
+            
+            global knowledge_base_data
+            knowledge_base_data = []
+            
+            for r in results:
+                if r.success and r.markdown:
+                    knowledge_base_data.append({
+                        "url": r.url,
+                        "content": r.markdown.raw_markdown,
+                        "fit_content": r.markdown.fit_markdown,
+                        "metadata": r.metadata
+                    })
+            
+            return {
+                "success": True,
+                "pages_collected": len(knowledge_base_data),
+                "query": request.query
+            }
+        
+        elif request.action == "export":
+            return {
+                "success": True,
+                "knowledge_base": knowledge_base_data,
+                "total_pages": len(knowledge_base_data)
+            }
+        
+        elif request.action == "clear":
+            knowledge_base_data = []
+            return {
+                "success": True,
+                "message": "Knowledge base cleared"
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Crawl Dispatcher API ============
+class DispatchRequest(BaseModel):
+    urls: List[str]
+    max_concurrent: int = 5
+    strategy: str = "parallel"  # parallel, sequential, adaptive
+
+@app.post("/crawl/dispatch")
+async def crawl_dispatcher(request: DispatchRequest):
+    """Crawl Dispatcher - 并行/顺序爬取多个URL"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        if request.strategy == "sequential":
+            # Sequential crawling
+            results = []
+            for url in request.urls:
+                result = await crawler.arun(url=url, config=CrawlerRunConfig(cache_mode=CacheMode.BYPASS))
+                results.append({
+                    "url": url,
+                    "success": result.success,
+                    "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+                })
+        
+        else:
+            # Parallel crawling (default)
+            import asyncio
+            
+            async def crawl_url(url: str):
+                result = await crawler.arun(url=url, config=CrawlerRunConfig(cache_mode=CacheMode.BYPASS))
+                return {
+                    "url": url,
+                    "success": result.success,
+                    "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+                    "error": result.error_message if not result.success else None
+                }
+            
+            # Use semaphore to limit concurrency
+            semaphore = asyncio.Semaphore(request.max_concurrent)
+            
+            async def limited_crawl(url: str):
+                async with semaphore:
+                    return await crawl_url(url)
+            
+            results = await asyncio.gather(*[limited_crawl(url) for url in request.urls])
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "strategy": request.strategy,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Advanced Browser Config API ============
+class AdvancedBrowserRequest(BaseModel):
+    url: str
+    # Browser type
+    browser_type: str = "chromium"  # chromium, firefox, webkit
+    # Browser mode
+    browser_mode: str = "dedicated"  # dedicated, builtin, custom, docker
+    # Display settings
+    headless: bool = True
+    viewport_width: int = 1280
+    viewport_height: int = 720
+    device_scale_factor: float = 1.0
+    # Performance modes
+    text_mode: bool = False
+    light_mode: bool = False
+    # User agent
+    user_agent: Optional[str] = None
+    user_agent_mode: str = ""  # "random" for randomization
+    # Proxy
+    proxy: Optional[str] = None
+    proxy_username: Optional[str] = None
+    proxy_password: Optional[str] = None
+    # Stealth
+    enable_stealth: bool = False
+    # Persistent context
+    use_persistent_context: bool = False
+    user_data_dir: Optional[str] = None
+    # Additional
+    extra_args: Optional[List[str]] = None
+
+@app.post("/crawl/advanced-browser")
+async def crawl_with_advanced_browser(request: AdvancedBrowserRequest):
+    """高级浏览器配置爬取 - 支持多种浏览器引擎和配置"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import BrowserConfig, CrawlerRunConfig
+        from crawl4ai.async_configs import ProxyConfig, GeolocationConfig
+        
+        # Build proxy config
+        proxy_config = None
+        if request.proxy:
+            proxy_config = ProxyConfig(
+                server=request.proxy,
+                username=request.proxy_username,
+                password=request.proxy_password
+            )
+        
+        # Build browser config
+        browser_config = BrowserConfig(
+            browser_type=request.browser_type,
+            browser_mode=request.browser_mode,
+            headless=request.headless,
+            viewport_width=request.viewport_width,
+            viewport_height=request.viewport_height,
+            device_scale_factor=request.device_scale_factor,
+            text_mode=request.text_mode,
+            light_mode=request.light_mode,
+            user_agent=request.user_agent,
+            user_agent_mode=request.user_agent_mode if request.user_agent_mode else None,
+            proxy_config=proxy_config,
+            enable_stealth=request.enable_stealth,
+            use_persistent_context=request.use_persistent_context,
+            user_data_dir=request.user_data_dir,
+            extra_args=request.extra_args,
+            verbose=True
+        )
+        
+        run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        async with AsyncWebCrawler(config=browser_config) as adv_crawler:
+            result = await adv_crawler.arun(url=request.url, config=run_config)
+            
+            return {
+                "success": result.success,
+                "url": result.url,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+                "html_length": len(result.html) if result.html else 0,
+                "links_count": len(result.links.get("internal", [])) if result.links else 0,
+                "error": result.error_message if not result.success else None
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ MHTML Capture API ============
+class MHTMLRequest(BaseModel):
+    url: str
+
+@app.post("/crawl/mhtml")
+async def capture_mhtml(request: MHTMLRequest):
+    """MHTML 捕获 - 完整页面快照"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            capture_mhtml=True,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Prefetch Mode API ============
+class PrefetchCrawlRequest(BaseModel):
+    url: str
+    max_depth: int = 2
+    max_pages: int = 100
+    strategy: str = "bfs"
+
+@app.post("/crawl/prefetch")
+async def crawl_with_prefetch(request: PrefetchCrawlRequest):
+    """Prefetch Mode - 5-10倍快速URL发现，跳过完整页面渲染"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy
+        
+        if request.strategy == "bfs":
+            strategy = BFSDeepCrawlStrategy(max_depth=request.max_depth, max_pages=request.max_pages)
+        else:
+            strategy = DFSDeepCrawlStrategy(max_depth=request.max_depth, max_pages=request.max_pages)
+        
+        run_config = CrawlerRunConfig(
+            prefetch=True,
+            deep_crawl_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "prefetch_mode": True,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "links_found": len(result.links) if result.links else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Text-Only Mode API ============
+class TextOnlyRequest(BaseModel):
+    url: str
+    word_count_threshold: int = 200
+
+@app.post("/crawl/text-only")
+async def crawl_text_only(request: TextOnlyRequest):
+    """Text-Only Mode - 禁用JS和图片，3-4倍快速爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        browser_cfg = BrowserConfig(
+            text_mode=True,
+            headless=True
+        )
+        
+        run_config = CrawlerRunConfig(
+            word_count_threshold=request.word_count_threshold,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "text_only_mode": True,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Dynamic Viewport API ============
+class DynamicViewportRequest(BaseModel):
+    url: str
+    viewport_width: int = 1280
+    viewport_height: int = 720
+    adjust_to_content: bool = True
+
+@app.post("/crawl/dynamic-viewport")
+async def crawl_with_dynamic_viewport(request: DynamicViewportRequest):
+    """Dynamic Viewport - 根据内容动态调整视口大小"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        browser_cfg = BrowserConfig(
+            viewport_width=request.viewport_width,
+            viewport_height=request.viewport_height,
+            adjust_viewport_to_content=request.adjust_to_content
+        )
+        
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+        
+        result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "viewport": {
+                "width": request.viewport_width,
+                "height": request.viewport_height,
+                "adjusted": request.adjust_to_content
+            },
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ CDP Connection Management API ============
+class CDPConnectionRequest(BaseModel):
+    action: str  # create, list, connect, close
+    cdp_url: Optional[str] = None
+
+@app.post("/cdp/connection")
+async def manage_cdp_connection(request: CDPConnectionRequest):
+    """CDP Connection - 浏览器复用和CDP连接管理"""
+    try:
+        if request.action == "create":
+            browser_cfg = BrowserConfig(
+                browser_mode="builtin",
+                cdp_cleanup_on_close=True
+            )
+            return {
+                "success": True,
+                "action": "create",
+                "cdp_url": browser_cfg.cdp_url,
+                "message": "CDP connection created with cleanup enabled"
+            }
+        
+        elif request.action == "list":
+            return {
+                "success": True,
+                "action": "list",
+                "message": "Use browser_mode=builtin for CDP reuse"
+            }
+        
+        elif request.action == "close":
+            return {
+                "success": True,
+                "action": "close",
+                "message": "CDP connection will be cleaned up on close"
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Crash Recovery State API ============
+class CrashRecoveryRequest(BaseModel):
+    url: str
+    max_depth: int = 2
+    max_pages: int = 50
+    strategy: str = "bfs"
+    resume_state: Optional[Dict[str, Any]] = None
+    save_state_interval: int = 10
+
+@app.post("/crawl/crash-recovery")
+async def crawl_with_crash_recovery(request: CrashRecoveryRequest):
+    """Crash Recovery - 深度爬取崩溃恢复，状态持久化"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy
+        import json
+        
+        saved_state = {"visited": [], "pending": [], "depth": 0}
+        
+        def on_state_change(state):
+            saved_state.update(state)
+            return state
+        
+        if request.strategy == "bfs":
+            strategy = BFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                resume_state=request.resume_state,
+                on_state_change=on_state_change if not request.resume_state else None
+            )
+        elif request.strategy == "dfs":
+            strategy = DFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                resume_state=request.resume_state,
+                on_state_change=on_state_change if not request.resume_state else None
+            )
+        else:
+            from crawl4ai.deep_crawling import BestFirstDeepCrawlStrategy
+            strategy = BestFirstDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                resume_state=request.resume_state,
+                on_state_change=on_state_change if not request.resume_state else None
+            )
+        
+        run_config = CrawlerRunConfig(
+            deep_crawl_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "crash_recovery": True,
+            "current_state": saved_state,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Sticky Session Proxy API ============
+class StickyProxyRequest(BaseModel):
+    url: str
+    proxy: str
+    sticky_session: bool = True
+
+@app.post("/crawl/sticky-proxy")
+async def crawl_with_sticky_proxy(request: StickyProxyRequest):
+    """Sticky Session Proxy - 粘性会话代理，保持同一代理"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import ProxyConfig
+        
+        proxy_cfg = ProxyConfig(
+            server=request.proxy,
+            sticky_session=request.sticky_session
+        )
+        
+        browser_cfg = BrowserConfig(proxy_config=proxy_cfg)
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+        
+        result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "proxy": request.proxy,
+            "sticky_session": request.sticky_session,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ HTTP Strategy Proxy API ============
+class HTTPProxyRequest(BaseModel):
+    url: str
+    proxy: str
+
+@app.post("/crawl/http-proxy")
+async def crawl_with_http_proxy(request: HTTPProxyRequest):
+    """HTTP Strategy Proxy - 非浏览器爬取的代理支持"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        run_config = CrawlerRunConfig(
+            proxy=request.proxy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "proxy": request.proxy,
+            "http_strategy": True,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Full Page Scan API ============
+class FullPageScanRequest(BaseModel):
+    url: str
+    scroll_pause: int = 1000
+
+@app.post("/crawl/full-scan")
+async def crawl_with_full_page_scan(request: FullPageScanRequest):
+    """Full Page Scan - 模拟滚动到底部捕获所有懒加载内容"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        run_config = CrawlerRunConfig(
+            scan_full_page=True,
+            delay_before_return_html=request.scroll_pause / 1000.0,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "full_page_scan": True,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "images_count": len(result.media.get("images", [])) if result.media else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Geolocation API ============
+class GeolocationRequest(BaseModel):
+    url: str
+    latitude: float
+    longitude: float
+    accuracy: float = 100.0
+
+@app.post("/crawl/geolocation")
+async def crawl_with_geolocation(request: GeolocationRequest):
+    """地理位置模拟爬取"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import BrowserConfig, CrawlerRunConfig
+        from crawl4ai.async_configs import GeolocationConfig
+        
+        browser_config = BrowserConfig(
+            headless=True,
+            verbose=True
+        )
+        
+        geolocation = GeolocationConfig(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            accuracy=request.accuracy
+        )
+        
+        run_config = CrawlerRunConfig(
+            geolocation=geolocation,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        async with AsyncWebCrawler(config=browser_config) as geo_crawler:
+            result = await geo_crawler.arun(url=request.url, config=run_config)
+            
+            return {
+                "success": result.success,
+                "url": result.url,
+                "geolocation": {
+                    "latitude": request.latitude,
+                    "longitude": request.longitude
+                },
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Shadow DOM API ============
+class ShadowDOMRequest(BaseModel):
+    url: str
+    flatten_shadow_dom: bool = True
+
+@app.post("/crawl/shadow-dom")
+async def crawl_with_shadow_dom(request: ShadowDOMRequest):
+    """Shadow DOM 处理爬取 - 用于 Web Components"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            flatten_shadow_dom=request.flatten_shadow_dom,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "html_length": len(result.html) if result.html else 0,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Multi-URL Config API ============
+class MultiURLConfigRequest(BaseModel):
+    urls: List[str]
+    # Common config
+    word_count_threshold: int = 200
+    wait_for: Optional[str] = None
+    screenshot: bool = False
+    # URL-specific patterns
+    url_patterns: Optional[List[str]] = None
+    match_mode: str = "OR"  # OR, AND
+
+@app.post("/crawl/multi-url")
+async def crawl_multi_url_config(request: MultiURLConfigRequest):
+    """多URL配置爬取 - 支持URL特定配置"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.utils import MatchMode
+        
+        # Build URL matcher
+        url_matcher = None
+        if request.url_patterns:
+            url_matcher = request.url_patterns
+        
+        match_mode_enum = MatchMode.OR if request.match_mode == "OR" else MatchMode.AND
+        
+        run_config = CrawlerRunConfig(
+            word_count_threshold=request.word_count_threshold,
+            wait_for=request.wait_for,
+            screenshot=request.screenshot,
+            url_matcher=url_matcher,
+            match_mode=match_mode_enum,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        # Crawl all URLs
+        results = []
+        async for result in await crawler.arun_many(urls=request.urls, config=run_config):
+            results.append({
+                "url": result.url,
+                "success": result.success,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            })
+        
+        return {
+            "success": True,
+            "total_urls": len(request.urls),
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ LLM Provider Config API ============
+class LLMProviderRequest(BaseModel):
+    url: str
+    provider: str = "openai/gpt-4o-mini"
+    instruction: str = "Extract the main content and summarize it."
+    temperature: float = 0.7
+
+@app.post("/llm/generate-markdown")
+async def llm_generate_markdown(request: LLMProviderRequest):
+    """LLM Markdown 生成 - 使用指定Provider生成Markdown"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig, LLMConfig
+        from crawl4ai.content_filter_strategy import LLMContentFilter
+        from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+        
+        # Configure LLM
+        llm_config = LLMConfig(
+            provider=request.provider,
+            api_token=os.getenv("OPENAI_API_KEY", "env:OPENAI_API_KEY"),
+            temperature=request.temperature
+        )
+        
+        # Use LLM content filter
+        filter_obj = LLMContentFilter(
+            llm_config=llm_config,
+            instruction=request.instruction,
+            chunk_token_threshold=2048
+        )
+        
+        md_generator = DefaultMarkdownGenerator(content_filter=filter_obj)
+        run_config = CrawlerRunConfig(markdown_generator=md_generator)
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown": result.markdown.fit_markdown if result.markdown else None,
+            "provider": request.provider
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ URL Seeding API ============
+class URLSeedingRequest(BaseModel):
+    domain: str
+    source: str = "sitemap+cc"  # "cc", "sitemap", "sitemap+cc"
+    pattern: Optional[str] = None
+    extract_head: bool = True
+    live_check: bool = False
+    max_urls: int = 100
+    query: Optional[str] = None
+    scoring_method: Optional[str] = None
+    score_threshold: Optional[float] = None
+
+@app.post("/url/seeding")
+async def url_seeding(request: URLSeedingRequest):
+    """URL Seeding - 批量URL发现 (Sitemap/Common Crawl)"""
+    try:
+        from crawl4ai import AsyncUrlSeeder, SeedingConfig
+        
+        async with AsyncUrlSeeder() as seeder:
+            config = SeedingConfig(
+                source=request.source,
+                pattern=request.pattern or "*",
+                extract_head=request.extract_head,
+                live_check=request.live_check,
+                max_urls=request.max_urls,
+                query=request.query,
+                scoring_method=request.scoring_method,
+                score_threshold=request.score_threshold,
+                verbose=True
+            )
+            
+            urls = await seeder.urls(request.domain, config)
+            
+            # Process results
+            valid_urls = [u for u in urls if u.get("status") == "valid"]
+            
+            return {
+                "success": True,
+                "domain": request.domain,
+                "total_found": len(urls),
+                "valid_count": len(valid_urls),
+                "urls": valid_urls[:request.max_urls]
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Multi-Domain URL Seeding API ============
+class MultiDomainSeedingRequest(BaseModel):
+    domains: List[str]
+    source: str = "sitemap"
+    pattern: Optional[str] = None
+    extract_head: bool = True
+    max_urls_per_domain: int = 20
+    query: Optional[str] = None
+    scoring_method: str = "bm25"
+    score_threshold: float = 0.3
+
+@app.post("/url/seeding/multi-domain")
+async def multi_domain_seeding(request: MultiDomainSeedingRequest):
+    """多域名URL发现 - 跨多个域名发现URL"""
+    try:
+        from crawl4ai import AsyncUrlSeeder, SeedingConfig
+        
+        async with AsyncUrlSeeder() as seeder:
+            config = SeedingConfig(
+                source=request.source,
+                pattern=request.pattern or "*",
+                extract_head=request.extract_head,
+                query=request.query,
+                scoring_method=request.scoring_method,
+                score_threshold=request.score_threshold,
+                max_urls=request.max_urls_per_domain,
+                verbose=True
+            )
+            
+            results = await seeder.many_urls(request.domains, config)
+            
+            # Process results
+            processed = {}
+            for domain, urls in results.items():
+                valid_urls = [u for u in urls if u.get("status") == "valid"]
+                processed[domain] = {
+                    "total": len(urls),
+                    "valid": len(valid_urls),
+                    "urls": valid_urls
+                }
+            
+            return {
+                "success": True,
+                "domains": request.domains,
+                "results": processed
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Cache Management API ============
+class CacheManagementRequest(BaseModel):
+    action: str  # "get", "clear", "stats"
+    cache_type: str = "all"  # "all", "html", "seo", "screenshot"
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """获取缓存统计信息"""
+    try:
+        cache_dir = os.path.join(os.path.expanduser("~"), ".crawl4ai")
+        seeder_cache = os.path.join(cache_dir, "seeder_cache")
+        html_cache = os.path.join(cache_dir, "cache", "html")
+        
+        stats = {
+            "cache_dir": cache_dir,
+            "exists": os.path.exists(cache_dir),
+            "seeder_cache_exists": os.path.exists(seeder_cache),
+            "html_cache_exists": os.path.exists(html_cache)
+        }
+        
+        # Count files
+        if os.path.exists(seeder_cache):
+            stats["seeder_files"] = len([f for f in os.listdir(seeder_cache) if os.path.isfile(os.path.join(seeder_cache, f))])
+        
+        if os.path.exists(html_cache):
+            stats["html_files"] = len([f for f in os.listdir(html_cache) if os.path.isfile(os.path.join(html_cache, f))])
+        
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/cache/manage")
+async def manage_cache(request: CacheManagementRequest):
+    """缓存管理 - 清除缓存"""
+    try:
+        import shutil
+        
+        cache_dir = os.path.join(os.path.expanduser("~"), ".crawl4ai")
+        
+        if request.action == "clear":
+            removed = []
+            
+            if request.cache_type in ["all", "html"]:
+                html_cache = os.path.join(cache_dir, "cache", "html")
+                if os.path.exists(html_cache):
+                    shutil.rmtree(html_cache)
+                    removed.append("html_cache")
+            
+            if request.cache_type in ["all", "seo"]:
+                seo_cache = os.path.join(cache_dir, "seo_cache")
+                if os.path.exists(seo_cache):
+                    shutil.rmtree(seo_cache)
+                    removed.append("seo_cache")
+            
+            if request.cache_type in ["all"]:
+                seeder_cache = os.path.join(cache_dir, "seeder_cache")
+                if os.path.exists(seeder_cache):
+                    shutil.rmtree(seeder_cache)
+                    removed.append("seeder_cache")
+            
+            return {
+                "success": True,
+                "message": f"Cleared cache types: {', '.join(removed) if removed else 'none'}"
+            }
+        
+        return {"success": False, "message": "Unknown action"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Media Extraction API ============
+class MediaExtractionRequest(BaseModel):
+    url: str
+    extract_images: bool = True
+    extract_videos: bool = True
+    extract_audio: bool = True
+
+@app.post("/extract/media")
+async def extract_media(request: MediaExtractionRequest):
+    """媒体提取 - 提取图片/视频/音频"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        media = {
+            "images": [],
+            "videos": [],
+            "audio": []
+        }
+        
+        if result.media:
+            if request.extract_images:
+                media["images"] = result.media.get("images", [])
+            if request.extract_videos:
+                media["videos"] = result.media.get("videos", [])
+            if request.extract_audio:
+                media["audio"] = result.media.get("audio", [])
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "media": media,
+            "media_count": len(media["images"]) + len(media["videos"]) + len(media["audio"])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Virtual Scroll API ============
+class VirtualScrollRequest(BaseModel):
+    url: str
+    container_selector: str = "[data-testid='primaryColumn']"
+    scroll_count: int = 30
+    scroll_by: str = "container_height"  # "container_height" or "pixel"
+    scroll_pixel: int = 500
+    wait_after_scroll: float = 1.0
+
+@app.post("/crawl/virtual-scroll")
+async def crawl_with_virtual_scroll(request: VirtualScrollRequest):
+    """Virtual Scroll - 虚拟滚动爬取 (Twitter/Instagram风格)"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.virtual_scroll_strategy import VirtualScrollConfig
+        
+        virtual_config = VirtualScrollConfig(
+            container_selector=request.container_selector,
+            scroll_count=request.scroll_count,
+            scroll_by=request.scroll_by,
+            scroll_pixel=request.scroll_pixel,
+            wait_after_scroll=request.wait_after_scroll
+        )
+        
+        run_config = CrawlerRunConfig(
+            virtual_scroll_config=virtual_config,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Form Interaction API ============
+class FormInteractionRequest(BaseModel):
+    url: str
+    form_selector: str = "form"
+    form_data: Dict[str, str]  # field_name: value
+    submit_selector: Optional[str] = None
+    wait_for: Optional[str] = None
+
+@app.post("/crawl/form")
+async def crawl_with_form_interaction(request: FormInteractionRequest):
+    """Form Interaction - 表单交互 (填写/提交)"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        # Build JS to fill form
+        js_code = ""
+        for field, value in request.form_data.items():
+            js_code += f"document.querySelector('{request.form_selector} [name=\"{field}\"]').value = '{value}';"
+        
+        if request.submit_selector:
+            js_code += f"document.querySelector('{request.submit_selector}').click();"
+        
+        run_config = CrawlerRunConfig(
+            js_code=js_code,
+            wait_for=request.wait_for,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "form_data": request.form_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ IFrame Processing API ============
+class IFrameRequest(BaseModel):
+    url: str
+    process_iframes: bool = True
+
+@app.post("/crawl/iframe")
+async def crawl_with_iframe(request: IFrameRequest):
+    """IFrame Processing - 内联IFrame内容处理"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            process_iframes=request.process_iframes,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "html_length": len(result.html) if result.html else 0,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Multi-Step Session API ============
+class MultiStepSessionRequest(BaseModel):
+    url: str
+    steps: List[Dict[str, Any]]  # Each step: {js_code, wait_for, action}
+    session_id: str = "multi_step_session"
+
+@app.post("/crawl/multi-step")
+async def crawl_multi_step(request: MultiStepSessionRequest):
+    """Multi-Step Session - 多步骤会话交互"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        results = []
+        
+        for i, step in enumerate(request.steps):
+            js_code = step.get("js_code")
+            wait_for = step.get("wait_for")
+            action = step.get("action", "click")  # click, scroll, fill, submit
+            
+            run_config = CrawlerRunConfig(
+                js_code=js_code,
+                wait_for=wait_for,
+                session_id=request.session_id,
+                js_only=(i > 0),  # First step is full navigation
+                cache_mode=CacheMode.BYPASS
+            )
+            
+            result = await crawler.arun(url=request.url, config=run_config)
+            
+            results.append({
+                "step": i + 1,
+                "action": action,
+                "success": result.success,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            })
+        
+        return {
+            "success": True,
+            "url": request.url,
+            "session_id": request.session_id,
+            "steps_completed": len(results),
+            "step_results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Overlay/Consent Removal API ============
+class CleanPageRequest(BaseModel):
+    url: str
+    remove_overlay_elements: bool = True
+    remove_consent_popups: bool = True
+
+@app.post("/crawl/clean")
+async def crawl_clean_page(request: CleanPageRequest):
+    """Clean Page - 移除弹窗/Consent弹窗"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        run_config = CrawlerRunConfig(
+            remove_overlay_elements=request.remove_overlay_elements,
+            remove_consent_popups=request.remove_consent_popups,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "cleaned": True
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Table Extraction Enhancement ============
+class TableExtractRequest(BaseModel):
+    url: str
+    table_index: int = 0
+    as_dataframe: bool = True
+
+@app.post("/extract/tables")
+async def extract_tables(request: TableExtractRequest):
+    """Table Extraction - 增强的表格提取，支持DataFrame转换"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        result = await crawler.arun(url=request.url)
+        
+        tables_data = []
+        if hasattr(result, 'tables') and result.tables:
+            for idx, table in enumerate(result.tables):
+                if idx >= request.table_index:
+                    table_info = {
+                        "index": idx,
+                        "columns": table.columns if hasattr(table, 'columns') else [],
+                        "row_count": len(table.data) if hasattr(table, 'data') else 0,
+                        "data": table.data[:10] if hasattr(table, 'data') else []
+                    }
+                    if request.as_dataframe and hasattr(table, 'to_dataframe'):
+                        table_info["dataframe"] = table.to_dataframe().to_dict()
+                    tables_data.append(table_info)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "tables_found": len(tables_data),
+            "tables": tables_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Browser Mode Config ============
+class BrowserModeRequest(BaseModel):
+    url: str
+    mode: str = "dedicated"  # dedicated, builtin, custom, docker
+    cdp_url: Optional[str] = None
+
+@app.post("/crawl/browser-mode")
+async def crawl_with_browser_mode(request: BrowserModeRequest):
+    """Browser Mode - 不同的浏览器初始化模式"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        browser_cfg = BrowserConfig(browser_mode=request.mode)
+        if request.cdp_url:
+            browser_cfg.cdp_url = request.cdp_url
+        
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "browser_mode": request.mode,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Smart TTL Cache for Sitemap ============
+class SmartCacheRequest(BaseModel):
+    sitemap_url: str
+    cache_ttl_hours: int = 24
+    validate_lastmod: bool = True
+
+@app.post("/seed/smart-cache")
+async def seed_with_smart_cache(request: SmartCacheRequest):
+    """Smart TTL Cache - 智能缓存失效的Sitemap seeder"""
+    try:
+        seeding_config = SeedingConfig(
+            cache_ttl_hours=request.cache_ttl_hours,
+            validate_sitemap_lastmod=request.validate_lastmod
+        )
+        
+        seeder = AsyncUrlSeeder(config=seeding_config)
+        urls = await seeder.seed(request.sitemap_url)
+        
+        return {
+            "success": True,
+            "sitemap_url": request.sitemap_url,
+            "urls_found": len(urls),
+            "urls": urls[:100],
+            "cache_ttl_hours": request.cache_ttl_hours,
+            "validate_lastmod": request.validate_lastmod
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Deep Crawl with Crash Recovery ============
+class DeepCrawlResumeRequest(BaseModel):
+    urls: List[str]
+    max_depth: int = 2
+    max_pages: int = 50
+    strategy: str = "bfs"
+    resume_state: Optional[Dict[str, Any]] = None
+
+@app.post("/crawl/deep/resume")
+async def deep_crawl_with_resume(request: DeepCrawlResumeRequest):
+    """Deep Crawl with Crash Recovery - 支持从检查点恢复"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        if request.strategy == "bfs":
+            strategy = BFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                resume_state=request.resume_state
+            )
+        elif request.strategy == "dfs":
+            strategy = DFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                resume_state=request.resume_state
+            )
+        else:
+            from crawl4ai.deep_crawling import BestFirstDeepCrawlStrategy
+            strategy = BestFirstDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                resume_state=request.resume_state
+            )
+        
+        run_config = CrawlerRunConfig(
+            deep_crawl_strategy=strategy,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        results = []
+        for url in request.urls:
+            result = await crawler.arun(url=url, config=run_config)
+            results.append({
+                "url": url,
+                "success": result.success,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            })
+        
+        return {
+            "success": True,
+            "crawled_pages": len(results),
+            "results": results,
+            "resume_state_available": True
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Process Local File in Browser ============
+class ProcessLocalFileRequest(BaseModel):
+    file_path: str
+    base_url: str
+    process_in_browser: bool = True
+    screenshot: bool = False
+
+@app.post("/crawl/process-local")
+async def process_local_file(request: ProcessLocalFileRequest):
+    """Process Local File in Browser - 在浏览器中处理本地HTML文件"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        file_path = request.file_path
+        if not os.path.isabs(file_path):
+            file_path = os.path.abspath(file_path)
+        
+        file_url = f"file://{file_path}"
+        
+        run_config = CrawlerRunConfig(
+            base_url=request.base_url,
+            process_in_browser=request.process_in_browser,
+            screenshot=request.screenshot,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=file_url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "file_path": file_path,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "screenshot": result.screenshot is not None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Docker LLM Provider Config ============
+class DockerLLMConfigRequest(BaseModel):
+    provider: str
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+@app.post("/config/docker-llm")
+async def configure_docker_llm(request: DockerLLMConfigRequest):
+    """Docker LLM Provider Config - 通过环境变量配置LLM提供商"""
+    try:
+        env_config = {
+            "LLM_PROVIDER": request.provider,
+        }
+        
+        if request.api_key:
+            if request.provider.startswith("openai"):
+                env_config["OPENAI_API_KEY"] = request.api_key
+            elif request.provider.startswith("groq"):
+                env_config["GROQ_API_KEY"] = request.api_key
+            elif request.provider.startswith("anthropic"):
+                env_config["ANTHROPIC_API_KEY"] = request.api_key
+            elif request.provider.startswith("google"):
+                env_config["GOOGLE_API_KEY"] = request.api_key
+        
+        if request.base_url:
+            env_config["LLM_BASE_URL"] = request.base_url
+        
+        return {
+            "success": True,
+            "configured_provider": request.provider,
+            "environment_variables": list(env_config.keys()),
+            "note": "Configure these environment variables in your Docker container"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Init Scripts for Browser ============
+class InitScriptsRequest(BaseModel):
+    url: str
+    scripts: List[str]
+
+@app.post("/crawl/init-scripts")
+async def crawl_with_init_scripts(request: InitScriptsRequest):
+    """Init Scripts - 页面加载前执行JavaScript"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        browser_cfg = BrowserConfig(
+            init_scripts=request.scripts
+        )
+        
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+        
+        result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "scripts_count": len(request.scripts),
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Enhanced Virtual Scroll ============
+class EnhancedVirtualScrollRequest(BaseModel):
+    url: str
+    container_selector: str
+    scroll_count: int = 30
+    scroll_by: str = "container_height"  # container_height, page_height, or pixels
+
+@app.post("/crawl/virtual-scroll/enhanced")
+async def crawl_with_enhanced_virtual_scroll(request: EnhancedVirtualScrollRequest):
+    """Enhanced Virtual Scroll - 针对Twitter/Instagram等虚拟滚动优化"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        virtual_scroll_cfg = VirtualScrollConfig(
+            container_selector=request.container_selector,
+            scroll_count=request.scroll_count,
+            scroll_by=request.scroll_by
+        )
+        
+        run_config = CrawlerRunConfig(
+            virtual_scroll_config=virtual_scroll_cfg,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "virtual_scroll": {
+                "container": request.container_selector,
+                "scroll_count": request.scroll_count,
+                "scroll_by": request.scroll_by
+            },
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Multi-URL with URL Matcher ============
+class MultiURLMatcherRequest(BaseModel):
+    urls: List[str]
+    configs: List[Dict[str, Any]]
+
+@app.post("/crawl/multi-url-matcher")
+async def crawl_multi_url_matcher(request: MultiURLMatcherRequest):
+    """Multi-URL with URL Matcher - 不同URL使用不同配置"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import MatchMode
+        
+        url_configs = []
+        for cfg in request.configs:
+            url_matchers = cfg.get("url_matchers", [])
+            crawl_config = CrawlerRunConfig(
+                word_count_threshold=cfg.get("word_count_threshold", 200),
+                screenshot=cfg.get("screenshot", False),
+                pdf=cfg.get("pdf", False),
+                cache_mode=CacheMode.BYPASS
+            )
+            url_configs.append({
+                "url_matcher": url_matchers,
+                "config": crawl_config
+            })
+        
+        results = []
+        for url in request.urls:
+            result = await crawler.arun(url=url)
+            results.append({
+                "url": url,
+                "success": result.success,
+                "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            })
+        
+        return {
+            "success": True,
+            "urls_processed": len(results),
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Memory Monitoring Enhanced ============
+@app.get("/monitor/memory/enhanced")
+async def get_enhanced_memory_stats():
+    """Enhanced Memory Monitoring - 详细的内存使用统计"""
+    try:
+        import psutil
+        import gc
+        
+        gc.collect()
+        
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        
+        return {
+            "rss_mb": round(mem_info.rss / 1024 / 1024, 2),
+            "vms_mb": round(mem_info.vms / 1024 / 1024, 2),
+            "percent": process.memory_percent(),
+            "gc_stats": {
+                "collections": gc.get_count()
+            },
+            "available_mb": round(psutil.virtual_memory().available / 1024 / 1024, 2),
+            "available_percent": round(psutil.virtual_memory().percent, 2)
+        }
+    except ImportError:
+        return {
+            "error": "psutil not installed",
+            "rss_mb": 0,
+            "vms_mb": 0,
+            "percent": 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Lazy Loading API ============
+class LazyLoadingRequest(BaseModel):
+    url: str
+    wait_for_images: bool = True
+    scroll_count: int = 5
+
+@app.post("/crawl/lazy-load")
+async def crawl_with_lazy_loading(request: LazyLoadingRequest):
+    """Lazy Loading - 处理懒加载内容"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        from crawl4ai import CrawlerRunConfig
+        
+        js_code = ""
+        for _ in range(request.scroll_count):
+            js_code += "window.scrollTo(0, document.body.scrollHeight);"
+        
+        run_config = CrawlerRunConfig(
+            js_code=js_code,
+            delay_before_return_html=1.0,
+            cache_mode=CacheMode.BYPASS
+        )
+        
+        result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

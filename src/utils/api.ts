@@ -816,3 +816,1954 @@ export async function executeC4AScript(request: C4AScriptRequest): Promise<Backe
   
   return response.json();
 }
+
+// ============ Advanced Extraction APIs ============
+
+export interface CSSExtractionRequest {
+  url: string;
+  schema: Record<string, any>;
+}
+
+export interface XPathExtractionRequest {
+  url: string;
+  schema: Record<string, any>;
+}
+
+export interface RegexExtractionRequest {
+  url: string;
+  pattern?: string;
+  custom_patterns?: Record<string, string>;
+}
+
+export interface SchemaGenerationRequest {
+  url?: string;
+  html?: string;
+  query: string;
+  schema_type?: 'css' | 'xpath';
+  provider?: string;
+  model?: string;
+}
+
+export interface AdvancedCrawlRequest {
+  url: string;
+  screenshot?: boolean;
+  pdf?: boolean;
+  headers?: Record<string, string>;
+  enable_stealth?: boolean;
+  use_undetected_browser?: boolean;
+  check_robots_txt?: boolean;
+  proxy?: string;
+  proxy_username?: string;
+  proxy_password?: string;
+  fetch_ssl_certificate?: boolean;
+  capture_network?: boolean;
+  capture_console?: boolean;
+  simulate_user?: boolean;
+  magic?: boolean;
+  override_navigator?: boolean;
+  wait_time?: number;
+  delay_before_return_html?: number;
+  page_timeout?: number;
+  session_id?: string;
+  use_browser?: boolean;
+  word_count_threshold?: number;
+}
+
+// CSS Extraction
+export async function extractWithCSS(request: CSSExtractionRequest): Promise<BackendCrawlResult> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/css`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// XPath Extraction
+export async function extractWithXPath(request: XPathExtractionRequest): Promise<BackendCrawlResult> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/xpath`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Regex Extraction
+export async function extractWithRegex(request: RegexExtractionRequest): Promise<BackendCrawlResult> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/regex`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Generate Schema with LLM
+export async function generateSchema(request: SchemaGenerationRequest): Promise<{success: boolean; schema: any; schema_type: string}> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/generate-schema`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Advanced Crawl with screenshot, PDF, stealth, etc.
+export async function advancedCrawl(request: AdvancedCrawlRequest): Promise<BackendCrawlResult> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/advanced`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Capture Screenshot
+export async function captureScreenshot(url: string): Promise<{success: boolean; url: string; screenshot: string | null}> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/screenshot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, screenshot: true }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Capture PDF
+export async function capturePDF(url: string): Promise<{success: boolean; url: string; pdf: string | null}> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/page-pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, pdf: true }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Get extraction strategies status
+export async function getExtractionStatus(): Promise<{extraction_strategies_available: boolean; strategies: Record<string, boolean>}> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/llm/status`);
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Hooks API ============
+export interface HooksCrawlRequest {
+  url: string;
+  on_browser_created?: string;
+  on_page_context_created?: string;
+  before_goto?: string;
+  after_goto?: string;
+  on_execution_started?: string;
+  before_retrieve_html?: string;
+  before_return_html?: string;
+  screenshot?: boolean;
+  pdf?: boolean;
+  wait_for?: string;
+}
+
+export async function crawlWithHooks(request: HooksCrawlRequest): Promise<BackendCrawlResult> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/hooks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Session Management API ============
+export interface SessionRequest {
+  action: 'export' | 'import';
+  session_id: string;
+  storage_state?: Record<string, any>;
+}
+
+export interface SessionResponse {
+  success: boolean;
+  session_id: string;
+  storage_state?: Record<string, any>;
+  message?: string;
+}
+
+export async function manageSession(request: SessionRequest): Promise<SessionResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/session/manage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Multi-page Schema Generation API ============
+export interface MultiPageSchemaRequest {
+  html_samples: string[];
+  query: string;
+  schema_type?: 'css' | 'xpath';
+  provider?: string;
+  model?: string;
+}
+
+export async function generateMultiPageSchema(request: MultiPageSchemaRequest): Promise<{success: boolean; schema: any; schema_type: string; sample_count: number}> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/schema/multi-page`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Token Usage API ============
+export async function getTokenUsage(): Promise<{prompt_tokens: number; completion_tokens: number; total_tokens: number; message?: string}> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/llm/token-usage`);
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Anti-Bot Fallback API ============
+export interface AntiBotRequest {
+  url: string;
+  max_retries?: number;
+  proxies?: string[];
+  enable_stealth?: boolean;
+  magic?: boolean;
+}
+
+export interface AntiBotResponse {
+  success: boolean;
+  url: string;
+  markdown?: string;
+  html?: string;
+  crawl_stats: {
+    attempts: number;
+    retries: number;
+    proxies_used: any[];
+    resolved_by: string;
+    fallback_fetch_used: boolean;
+  };
+  error?: string;
+}
+
+export async function crawlWithAntiBot(request: AntiBotRequest): Promise<AntiBotResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/anti-bot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Filter Chain API ============
+export interface FilterRequest {
+  url: string;
+  patterns?: string[];
+  allowed_domains?: string[];
+  blocked_domains?: string[];
+  content_types?: string[];
+  max_depth?: number;
+  max_pages?: number;
+  strategy?: 'bfs' | 'dfs' | 'best_first';
+}
+
+export interface FilterResponse {
+  success: boolean;
+  url: string;
+  pages_crawled: number;
+  results: Array<{url: string; depth: number; markdown_length: number}>;
+}
+
+export async function crawlWithFilter(request: FilterRequest): Promise<FilterResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/filter`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Prefetch Mode API ============
+export interface PrefetchRequest {
+  url: string;
+  max_pages?: number;
+}
+
+export interface PrefetchResponse {
+  success: boolean;
+  url: string;
+  internal_links: string[];
+  external_links: string[];
+  total_internal: number;
+  total_external: number;
+}
+
+export async function prefetchUrls(request: PrefetchRequest): Promise<PrefetchResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/prefetch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Deep Crawl State Management API ============
+export interface DeepCrawlStateRequest {
+  action: 'save' | 'resume' | 'cancel';
+  state?: Record<string, any>;
+  crawl_config?: Record<string, any>;
+}
+
+export interface DeepCrawlStateResponse {
+  success: boolean;
+  state_id?: string;
+  message?: string;
+  pages_crawled?: number;
+  results?: Array<{url: string; depth: number}>;
+}
+
+export async function manageDeepCrawlState(request: DeepCrawlStateRequest): Promise<DeepCrawlStateResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Research Assistant API ============
+export interface ResearchRequest {
+  urls: string[];
+  query: string;
+  top_k?: number;
+  provider?: string;
+  model?: string;
+}
+
+export interface ResearchResponse {
+  success: boolean;
+  query: string;
+  pages_analyzed: number;
+  relevant_pages: Array<{url: string; content: string; content_length: number}>;
+}
+
+export async function researchAssistant(request: ResearchRequest): Promise<ResearchResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/research/assistant`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Page Summarization API ============
+export interface SummarizeRequest {
+  url?: string;
+  html?: string;
+  provider?: string;
+  model?: string;
+  instruction?: string;
+}
+
+export interface SummarizeResponse {
+  success: boolean;
+  url?: string;
+  summary?: string;
+  full_content?: string;
+}
+
+export async function summarizePage(request: SummarizeRequest): Promise<SummarizeResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/content/summarize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Knowledge Base API ============
+export interface KnowledgeBaseRequest {
+  action: 'collect' | 'export' | 'clear';
+  urls?: string[];
+  query?: string;
+}
+
+export interface KnowledgeBaseResponse {
+  success: boolean;
+  pages_collected?: number;
+  query?: string;
+  knowledge_base?: Array<{url: string; content: string; fit_content?: string}>;
+  total_pages?: number;
+  message?: string;
+}
+
+export async function manageKnowledgeBase(request: KnowledgeBaseRequest): Promise<KnowledgeBaseResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/knowledge/base`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Crawl Dispatcher API ============
+export interface DispatchRequest {
+  urls: string[];
+  max_concurrent?: number;
+  strategy?: 'parallel' | 'sequential';
+}
+
+export interface DispatchResponse {
+  success: boolean;
+  total_urls: number;
+  strategy: string;
+  results: Array<{url: string; success: boolean; markdown_length: number; error?: string}>;
+}
+
+export async function crawlDispatcher(request: DispatchRequest): Promise<DispatchResponse> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/dispatch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Advanced Browser Config API ============
+export interface AdvancedBrowserRequest {
+  url: string;
+  browser_type?: 'chromium' | 'firefox' | 'webkit';
+  browser_mode?: 'dedicated' | 'builtin' | 'custom' | 'docker';
+  headless?: boolean;
+  viewport_width?: number;
+  viewport_height?: number;
+  device_scale_factor?: number;
+  text_mode?: boolean;
+  light_mode?: boolean;
+  user_agent?: string;
+  user_agent_mode?: string;
+  proxy?: string;
+  enable_stealth?: boolean;
+}
+
+export async function crawlWithAdvancedBrowser(request: AdvancedBrowserRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/advanced-browser`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ MHTML Capture API ============
+export async function captureMHTML(url: string): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/mhtml`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Geolocation API ============
+export async function crawlWithGeolocation(url: string, lat: number, lng: number): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/geolocation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, latitude: lat, longitude: lng }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Shadow DOM API ============
+export async function crawlWithShadowDOM(url: string, flatten: boolean = true): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/shadow-dom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, flatten_shadow_dom: flatten }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Multi-URL Config API ============
+export interface MultiURLConfigRequest {
+  urls: string[];
+  word_count_threshold?: number;
+  wait_for?: string;
+  screenshot?: boolean;
+  url_patterns?: string[];
+  match_mode?: 'OR' | 'AND';
+}
+
+export async function crawlMultiURLConfig(request: MultiURLConfigRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/multi-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ LLM Provider Config API ============
+export async function llmGenerateMarkdown(url: string, provider?: string, instruction?: string): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/llm/generate-markdown`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, provider, instruction }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ URL Seeding API ============
+export interface URLSeedingRequest {
+  domain: string;
+  source?: 'cc' | 'sitemap' | 'sitemap+cc';
+  pattern?: string;
+  extract_head?: boolean;
+  live_check?: boolean;
+  max_urls?: number;
+  query?: string;
+  scoring_method?: string;
+  score_threshold?: number;
+}
+
+export async function urlSeeding(request: URLSeedingRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/url/seeding`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Multi-Domain URL Seeding API ============
+export interface MultiDomainSeedingRequest {
+  domains: string[];
+  source?: string;
+  pattern?: string;
+  extract_head?: boolean;
+  max_urls_per_domain?: number;
+  query?: string;
+  scoring_method?: string;
+  score_threshold?: number;
+}
+
+export async function multiDomainSeeding(request: MultiDomainSeedingRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/url/seeding/multi-domain`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Cache Management API ============
+export async function getCacheStats(): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/cache/stats`);
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function manageCache(action: string, cacheType: string = 'all'): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/cache/manage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, cache_type: cacheType }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Media Extraction API ============
+export interface MediaExtractionRequest {
+  url: string;
+  extract_images?: boolean;
+  extract_videos?: boolean;
+  extract_audio?: boolean;
+}
+
+export async function extractMedia(request: MediaExtractionRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Virtual Scroll API ============
+export interface VirtualScrollRequest {
+  url: string;
+  container_selector?: string;
+  scroll_count?: number;
+  scroll_by?: string;
+  scroll_pixel?: number;
+  wait_after_scroll?: number;
+}
+
+export async function crawlWithVirtualScroll(request: VirtualScrollRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/virtual-scroll`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Form Interaction API ============
+export interface FormInteractionRequest {
+  url: string;
+  form_selector?: string;
+  form_data: Record<string, string>;
+  submit_selector?: string;
+  wait_for?: string;
+}
+
+export async function crawlWithFormInteraction(request: FormInteractionRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/form`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ IFrame Processing API ============
+export async function crawlWithIFrame(url: string, processIframes: boolean = true): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/iframe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, process_iframes: processIframes }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Multi-Step Session API ============
+export interface MultiStepSessionRequest {
+  url: string;
+  steps: Array<{js_code?: string; wait_for?: string; action?: string}>;
+  session_id?: string;
+}
+
+export async function crawlMultiStep(request: MultiStepSessionRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/multi-step`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Clean Page API ============
+export interface CleanPageRequest {
+  url: string;
+  remove_overlay_elements?: boolean;
+  remove_consent_popups?: boolean;
+}
+
+export async function crawlCleanPage(request: CleanPageRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/clean`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Lazy Loading API ============
+export interface LazyLoadingRequest {
+  url: string;
+  wait_for_images?: boolean;
+  scroll_count?: number;
+}
+
+export async function crawlWithLazyLoading(request: LazyLoadingRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/lazy-load`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Local File Crawl API ============
+export interface LocalFileRequest {
+  file_path: string;
+  word_count_threshold?: number;
+}
+
+export async function crawlLocalFile(request: LocalFileRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/local-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Raw HTML Crawl API ============
+export interface RawHTMLRequest {
+  html_content: string;
+  word_count_threshold?: number;
+}
+
+export async function crawlRawHTML(request: RawHTMLRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/raw-html`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Batch Crawl API ============
+export interface BatchCrawlRequest {
+  urls: string[];
+  stream?: boolean;
+  word_count_threshold?: number;
+  max_concurrent?: number;
+}
+
+export async function crawlBatch(request: BatchCrawlRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Content Selection API ============
+export interface ContentSelectionRequest {
+  url: string;
+  only_text?: boolean;
+  only_main_content?: boolean;
+  remove_overlay_elements?: boolean;
+  remove_consent_popups?: boolean;
+}
+
+export async function crawlWithContentSelection(request: ContentSelectionRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/content-select`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Clustering Extraction API ============
+export interface ClusteringExtractionRequest {
+  url: string;
+  n_clusters?: number;
+  extraction_type?: 'css' | 'xpath';
+}
+
+export async function clusteringExtraction(request: ClusteringExtractionRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/clustering`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Proxy Rotation API ============
+export interface ProxyRotationRequest {
+  urls: string[];
+  proxies: string[];
+  strategy?: 'round_robin' | 'random';
+  fetch_ssl?: boolean;
+}
+
+export async function crawlWithProxyRotation(request: ProxyRotationRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/proxy-rotation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Proxy from Environment API ============
+export interface ProxyFromEnvRequest {
+  urls: string[];
+  env_variable?: string;
+  strategy?: 'round_robin' | 'random';
+}
+
+export async function crawlWithProxyFromEnv(request: ProxyFromEnvRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/proxy-env`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ SSL Certificate Export API ============
+export interface SSLCertRequest {
+  url: string;
+  proxy?: string;
+  export_json?: boolean;
+}
+
+export async function crawlWithSSLExport(request: SSLCertRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/ssl-export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Proxy Validation API ============
+export async function validateProxies(proxies: string[]): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/proxy/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proxies }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ SOCKS5 Proxy API ============
+export interface SOCKS5ProxyRequest {
+  url: string;
+  proxy_host: string;
+  proxy_port: number;
+  username?: string;
+  password?: string;
+}
+
+export async function crawlWithSOCKS5(request: SOCKS5ProxyRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/socks5`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Rate Limiter API ============
+export interface RateLimiterConfigRequest {
+  urls: string[];
+  base_delay_min?: number;
+  base_delay_max?: number;
+  max_delay?: number;
+  max_retries?: number;
+}
+
+export async function crawlWithRateLimiter(request: RateLimiterConfigRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/rate-limited`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Memory Adaptive Dispatcher API ============
+export interface MemoryAdaptiveDispatcherRequest {
+  urls: string[];
+  memory_threshold?: number;
+  check_interval?: number;
+  max_concurrent?: number;
+  stream?: boolean;
+}
+
+export async function crawlWithMemoryAdaptive(request: MemoryAdaptiveDispatcherRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/memory-adaptive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Semaphore Dispatcher API ============
+export interface SemaphoreDispatcherRequest {
+  urls: string[];
+  semaphore_count?: number;
+  stream?: boolean;
+}
+
+export async function crawlWithSemaphore(request: SemaphoreDispatcherRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/semaphore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ URL Specific Config API ============
+export interface URLSpecificConfigRequest {
+  urls: string[];
+  configs: Record<string, any>[];
+}
+
+export async function crawlWithURLSpecificConfig(request: URLSpecificConfigRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/url-specific`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Crawler Monitor Stats API ============
+export async function getMonitorStats(): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/monitor/stats`);
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Storage State API ============
+export interface StorageStateRequest {
+  action: 'export' | 'import';
+  session_id: string;
+  storage_state?: Record<string, any>;
+}
+
+export async function manageStorageState(request: StorageStateRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/session/storage-state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Cookie Management API ============
+export interface CookieRequest {
+  url: string;
+  cookies: Array<{name: string; value: string; domain?: string}>;
+}
+
+export async function manageCookies(request: CookieRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/session/cookies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Pagination Crawl API ============
+export interface PaginationRequest {
+  url: string;
+  session_id?: string;
+  pages?: number;
+  next_button_selector?: string;
+  item_selector: string;
+}
+
+export async function crawlWithPagination(request: PaginationRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/pagination`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Fit Markdown API ============
+export async function crawlFitMarkdown(url: string, query: string): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/fit-markdown`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, query }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Cosine Similarity API ============
+export interface CosineSimilarityRequest {
+  url: string;
+  semantic_filter: string;
+  word_count_threshold?: number;
+}
+
+export async function extractWithCosine(request: CosineSimilarityRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/cosine`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ DOM Selector API ============
+export async function extractWithDOM(url: string, selector: string): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/dom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, selector }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Table Extraction API ============
+export interface TableExtractRequest {
+  url: string;
+  table_index?: number;
+  as_dataframe?: boolean;
+}
+
+export async function extractTables(request: TableExtractRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/extract/tables`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Browser Mode API ============
+export interface BrowserModeRequest {
+  url: string;
+  mode: 'dedicated' | 'builtin' | 'custom' | 'docker';
+  cdp_url?: string;
+}
+
+export async function crawlWithBrowserMode(request: BrowserModeRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/browser-mode`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Smart TTL Cache API ============
+export interface SmartCacheRequest {
+  sitemap_url: string;
+  cache_ttl_hours?: number;
+  validate_lastmod?: boolean;
+}
+
+export async function seedWithSmartCache(request: SmartCacheRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/seed/smart-cache`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Deep Crawl with Resume API ============
+export interface DeepCrawlResumeRequest {
+  urls: string[];
+  max_depth?: number;
+  max_pages?: number;
+  strategy?: 'bfs' | 'dfs' | 'best_first';
+  resume_state?: Record<string, unknown>;
+}
+
+export async function deepCrawlWithResume(request: DeepCrawlResumeRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/deep/resume`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Process Local File API ============
+export interface ProcessLocalFileRequest {
+  file_path: string;
+  base_url: string;
+  process_in_browser?: boolean;
+  screenshot?: boolean;
+}
+
+export async function processLocalFile(request: ProcessLocalFileRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/process-local`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Docker LLM Config API ============
+export interface DockerLLMConfigRequest {
+  provider: string;
+  api_key?: string;
+  base_url?: string;
+}
+
+export async function configureDockerLLM(request: DockerLLMConfigRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/config/docker-llm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Init Scripts API ============
+export interface InitScriptsRequest {
+  url: string;
+  scripts: string[];
+}
+
+export async function crawlWithInitScripts(request: InitScriptsRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/init-scripts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Enhanced Virtual Scroll API ============
+export interface EnhancedVirtualScrollRequest {
+  url: string;
+  container_selector: string;
+  scroll_count?: number;
+  scroll_by?: 'container_height' | 'page_height' | number;
+}
+
+export async function crawlWithEnhancedVirtualScroll(request: EnhancedVirtualScrollRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/virtual-scroll/enhanced`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Multi-URL Matcher API ============
+export interface MultiURLMatcherConfig {
+  url_matchers: string[];
+  word_count_threshold?: number;
+  screenshot?: boolean;
+  pdf?: boolean;
+}
+
+export interface MultiURLMatcherRequest {
+  urls: string[];
+  configs: MultiURLMatcherConfig[];
+}
+
+export async function crawlMultiURLMatcher(request: MultiURLMatcherRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/multi-url-matcher`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Enhanced Memory Stats API ============
+export async function getEnhancedMemoryStats(): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/monitor/memory/enhanced`, {
+    method: 'GET',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Prefetch Mode API ============
+export interface PrefetchCrawlRequest {
+  url: string;
+  max_depth?: number;
+  max_pages?: number;
+  strategy?: 'bfs' | 'dfs';
+}
+
+export async function crawlWithPrefetch(request: PrefetchCrawlRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/prefetch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Text-Only Mode API ============
+export interface TextOnlyRequest {
+  url: string;
+  word_count_threshold?: number;
+}
+
+export async function crawlTextOnly(request: TextOnlyRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/text-only`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Dynamic Viewport API ============
+export interface DynamicViewportRequest {
+  url: string;
+  viewport_width?: number;
+  viewport_height?: number;
+  adjust_to_content?: boolean;
+}
+
+export async function crawlWithDynamicViewport(request: DynamicViewportRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/dynamic-viewport`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ CDP Connection API ============
+export interface CDPConnectionRequest {
+  action: 'create' | 'list' | 'connect' | 'close';
+  cdp_url?: string;
+}
+
+export async function manageCDPConnection(request: CDPConnectionRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/cdp/connection`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Crash Recovery API ============
+export interface CrashRecoveryRequest {
+  url: string;
+  max_depth?: number;
+  max_pages?: number;
+  strategy?: 'bfs' | 'dfs' | 'best_first';
+  resume_state?: Record<string, unknown>;
+  save_state_interval?: number;
+}
+
+export async function crawlWithCrashRecovery(request: CrashRecoveryRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/crash-recovery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Sticky Proxy API ============
+export interface StickyProxyRequest {
+  url: string;
+  proxy: string;
+  sticky_session?: boolean;
+}
+
+export async function crawlWithStickyProxy(request: StickyProxyRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/sticky-proxy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ HTTP Proxy API ============
+export interface HTTPProxyRequest {
+  url: string;
+  proxy: string;
+}
+
+export async function crawlWithHTTPProxy(request: HTTPProxyRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/http-proxy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Full Page Scan API ============
+export interface FullPageScanRequest {
+  url: string;
+  scroll_pause?: number;
+}
+
+export async function crawlWithFullPageScan(request: FullPageScanRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/full-scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
