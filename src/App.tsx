@@ -47,7 +47,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
   const [newUrl, setNewUrl] = useState('');
-  const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage' | 'advanced'>('queue');
   const [activeCrawlTab, setActiveCrawlTab] = useState<'basic' | 'deep' | 'adaptive' | 'ecommerce' | 'seller'>('basic');
   const [backendConfig, setBackendConfig] = useState<{ enabled: boolean; url: string }>({ enabled: false, url: 'http://localhost:8000' });
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -134,6 +134,51 @@ export default function App() {
   const [crawlReviews, setCrawlReviews] = useState(false);
   const [isSellerCrawling, setIsSellerCrawling] = useState(false);
   const [sellerResults, setSellerResults] = useState<any>(null);
+  
+  // Advanced crawl state
+  const [advUrl, setAdvUrl] = useState('');
+  const [advScreenshot, setAdvScreenshot] = useState(false);
+  const [advPdf, setAdvPdf] = useState(false);
+  const [advStealth, setAdvStealth] = useState(false);
+  const [advUndetected, setAdvUndetected] = useState(false);
+  const [advRobots, setAdvRobots] = useState(false);
+  const [advProxy, setAdvProxy] = useState('');
+  const [advHeaders, setAdvHeaders] = useState('');
+  const [advNetwork, setAdvNetwork] = useState(false);
+  const [advConsole, setAdvConsole] = useState(false);
+  const [advSimulateUser, setAdvSimulateUser] = useState(false);
+  const [advMagic, setAdvMagic] = useState(false);
+  const [isAdvCrawling, setIsAdvCrawling] = useState(false);
+  const [advResults, setAdvResults] = useState<any>(null);
+
+  // v0.8.x Features State
+  const [v08Url, setV08Url] = useState('');
+  const [v08Prefetch, setV08Prefetch] = useState(false);
+  const [v08TextOnly, setV08TextOnly] = useState(false);
+  const [v08CrashRecovery, setV08CrashRecovery] = useState(false);
+  const [v08FullScan, setV08FullScan] = useState(false);
+  const [v08MaxDepth, setV08MaxDepth] = useState(2);
+  const [v08MaxPages, setV08MaxPages] = useState(50);
+  const [v08Strategy, setV08Strategy] = useState<'bfs' | 'dfs' | 'best_first'>('bfs');
+  const [v08ViewportW, setV08ViewportW] = useState(1280);
+  const [v08ViewportH, setV08ViewportH] = useState(720);
+  const [v08AdjustViewport, setV08AdjustViewport] = useState(true);
+  const [v08StickyProxy, setV08StickyProxy] = useState(false);
+  const [v08Proxy, setV08Proxy] = useState('');
+  const [isV08Crawling, setIsV08Crawling] = useState(false);
+  const [v08Results, setV08Results] = useState<any>(null);
+  
+  // Extraction state
+  const [extUrl, setExtUrl] = useState('');
+  const [extSchema, setExtSchema] = useState('');
+  const [extType, setExtType] = useState<'css' | 'xpath' | 'regex'>('css');
+  const [isExtracting2, setIsExtracting2] = useState(false);
+  const [extResults, setExtResults] = useState<any>(null);
+  
+  // Schema generation state
+  const [genQuery, setGenQuery] = useState('');
+  const [genSchema, setGenSchema] = useState('');
+  const [isGenSchema, setIsGenSchema] = useState(false);
   
   const crawlingRef = useRef(crawlState);
   crawlingRef.current = crawlState;
@@ -963,6 +1008,140 @@ export default function App() {
     }
   };
 
+  const handleAdvancedCrawl = async () => {
+    if (!advUrl) return;
+    setIsAdvCrawling(true);
+    setAdvResults(null);
+    try {
+      const { advancedCrawl } = await import('./utils/api');
+      let headers = undefined;
+      if (advHeaders) {
+        try {
+          headers = JSON.parse(advHeaders);
+        } catch {
+          addLog('error', language === 'zh' ? 'Headers格式无效，请输入有效的JSON' : 'Invalid Headers format, please enter valid JSON');
+          setIsAdvCrawling(false);
+          return;
+        }
+      }
+      const result = await advancedCrawl({
+        url: advUrl,
+        screenshot: advScreenshot,
+        pdf: advPdf,
+        enable_stealth: advStealth,
+        use_undetected_browser: advUndetected,
+        check_robots_txt: advRobots,
+        proxy: advProxy || undefined,
+        headers,
+        capture_network: advNetwork,
+        capture_console: advConsole,
+        simulate_user: advSimulateUser,
+        magic: advMagic,
+      });
+      setAdvResults(result);
+      addLog('success', language === 'zh' ? '高级爬取完成!' : 'Advanced crawl completed!');
+    } catch (err: any) {
+      addLog('error', `${language === 'zh' ? '高级爬取失败' : 'Advanced crawl failed'}: ${err.message}`);
+    } finally {
+      setIsAdvCrawling(false);
+    }
+  };
+
+  // v0.8.x Features Handler
+  const handleV08Crawl = async () => {
+    if (!v08Url) return;
+    setIsV08Crawling(true);
+    setV08Results(null);
+    try {
+      const { crawlWithPrefetch, crawlTextOnly, crawlWithDynamicViewport, crawlWithCrashRecovery, crawlWithStickyProxy, crawlWithFullPageScan } = await import('./utils/api');
+      
+      let result;
+      if (v08Prefetch) {
+        result = await crawlWithPrefetch({
+          url: v08Url,
+          max_depth: v08MaxDepth,
+          max_pages: v08MaxPages,
+          strategy: v08Strategy
+        });
+        addLog('success', language === 'zh' ? 'Prefetch模式爬取完成!' : 'Prefetch crawl completed!');
+      } else if (v08TextOnly) {
+        result = await crawlTextOnly({ url: v08Url });
+        addLog('success', language === 'zh' ? 'Text-Only模式爬取完成!' : 'Text-Only crawl completed!');
+      } else if (v08CrashRecovery) {
+        result = await crawlWithCrashRecovery({
+          url: v08Url,
+          max_depth: v08MaxDepth,
+          max_pages: v08MaxPages,
+          strategy: v08Strategy
+        });
+        addLog('success', language === 'zh' ? 'Crash Recovery爬取完成!' : 'Crash Recovery crawl completed!');
+      } else if (v08FullScan) {
+        result = await crawlWithFullPageScan({ url: v08Url });
+        addLog('success', language === 'zh' ? 'Full Page Scan完成!' : 'Full Page Scan completed!');
+      } else if (v08Proxy) {
+        result = await crawlWithStickyProxy({
+          url: v08Url,
+          proxy: v08Proxy,
+          sticky_session: v08StickyProxy
+        });
+        addLog('success', language === 'zh' ? 'Sticky Proxy爬取完成!' : 'Sticky Proxy crawl completed!');
+      } else {
+        result = await crawlWithDynamicViewport({
+          url: v08Url,
+          viewport_width: v08ViewportW,
+          viewport_height: v08ViewportH,
+          adjust_to_content: v08AdjustViewport
+        });
+        addLog('success', language === 'zh' ? 'Dynamic Viewport爬取完成!' : 'Dynamic Viewport crawl completed!');
+      }
+      setV08Results(result);
+    } catch (err: any) {
+      addLog('error', `${language === 'zh' ? 'v0.8.x爬取失败' : 'v0.8.x crawl failed'}: ${err.message}`);
+    } finally {
+      setIsV08Crawling(false);
+    }
+  };
+
+  const handleExtract = async () => {
+    if (!extUrl || !extSchema) return;
+    setIsExtracting2(true);
+    setExtResults(null);
+    try {
+      const { extractWithCSS, extractWithXPath, extractWithRegex } = await import('./utils/api');
+      let result;
+      if (extType === 'css') {
+        result = await extractWithCSS({ url: extUrl, schema: { data: extSchema } });
+      } else if (extType === 'xpath') {
+        result = await extractWithXPath({ url: extUrl, schema: { data: extSchema } });
+      } else {
+        result = await extractWithRegex({ url: extUrl, pattern: extSchema });
+      }
+      setExtResults(result);
+      addLog('success', language === 'zh' ? '提取完成!' : 'Extraction completed!');
+    } catch (err: any) {
+      addLog('error', `${language === 'zh' ? '提取失败' : 'Extraction failed'}: ${err.message}`);
+    } finally {
+      setIsExtracting2(false);
+    }
+  };
+
+  const handleGenerateSchema = async () => {
+    if (!genQuery) return;
+    setIsGenSchema(true);
+    try {
+      const { generateSchema } = await import('./utils/api');
+      const result = await generateSchema({ query: genQuery });
+      if (result.success) {
+        setGenSchema(JSON.stringify(result.schema, null, 2));
+        addLog('success', language === 'zh' ? 'Schema生成完成!' : 'Schema generation completed!');
+      }
+    } catch (err: any) {
+      addLog('error', `${language === 'zh' ? 'Schema生成失败' : 'Schema generation failed'}: ${err.message}`);
+    } finally {
+      setIsGenSchema(false);
+    }
+  };
+
   const handleAddUrl = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newUrl) return;
@@ -1528,6 +1707,9 @@ export default function App() {
                   </button>
                   <button onClick={() => setActiveTab('storage')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'storage' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                     {t.storage}
+                  </button>
+                  <button onClick={() => setActiveTab('advanced')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'advanced' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {language === 'zh' ? '高级' : 'Advanced'}
                   </button>
                 </div>
                 <div className="flex gap-2 items-center">
@@ -2469,6 +2651,281 @@ export default function App() {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === 'advanced' && (
+                  <div className="p-4 space-y-6">
+                    <div className="mb-4 flex justify-between items-center">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{language === 'zh' ? '高级爬取功能' : 'Advanced Crawling Features'}</h3>
+                    </div>
+
+                    {/* Advanced Crawl Section */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        {language === 'zh' ? '高级爬取 (截图/PDF/代理/反爬)' : 'Advanced Crawl (Screenshot/PDF/Proxy/Stealth)'}
+                      </h4>
+                      <div className="space-y-3">
+                        <input
+                          type="url"
+                          value={advUrl}
+                          onChange={(e) => setAdvUrl(e.target.value)}
+                          placeholder={language === 'zh' ? '输入URL...' : 'Enter URL...'}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advScreenshot} onChange={(e) => setAdvScreenshot(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '截图' : 'Screenshot'}
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advPdf} onChange={(e) => setAdvPdf(e.target.checked)} className="rounded" />
+                            PDF
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advStealth} onChange={(e) => setAdvStealth(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '隐身模式' : 'Stealth'}
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advUndetected} onChange={(e) => setAdvUndetected(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '反爬浏览器' : 'Undetected'}
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advRobots} onChange={(e) => setAdvRobots(e.target.checked)} className="rounded" />
+                            Robots.txt
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advNetwork} onChange={(e) => setAdvNetwork(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '网络请求' : 'Network'}
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advConsole} onChange={(e) => setAdvConsole(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '控制台' : 'Console'}
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advSimulateUser} onChange={(e) => setAdvSimulateUser(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '模拟用户' : 'Simulate User'}
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" checked={advMagic} onChange={(e) => setAdvMagic(e.target.checked)} className="rounded" />
+                            Magic
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={advProxy}
+                            onChange={(e) => setAdvProxy(e.target.value)}
+                            placeholder={language === 'zh' ? '代理 (可选)' : 'Proxy (optional)'}
+                            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={advHeaders}
+                            onChange={(e) => setAdvHeaders(e.target.value)}
+                            placeholder={language === 'zh' ? '自定义Headers (JSON)' : 'Custom Headers (JSON)'}
+                            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                          />
+                        </div>
+                        <button
+                          onClick={handleAdvancedCrawl}
+                          disabled={!advUrl || isAdvCrawling}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {isAdvCrawling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                          {isAdvCrawling ? (language === 'zh' ? '爬取中...' : 'Crawling...') : (language === 'zh' ? '开始爬取' : 'Start Crawl')}
+                        </button>
+                        {advResults && (
+                          <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{JSON.stringify(advResults, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Extraction Section */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3 flex items-center gap-2">
+                        <Network className="w-4 h-4" />
+                        {language === 'zh' ? '结构化提取 (CSS/XPath/Regex)' : 'Structured Extraction (CSS/XPath/Regex)'}
+                      </h4>
+                      <div className="space-y-3">
+                        <input
+                          type="url"
+                          value={extUrl}
+                          onChange={(e) => setExtUrl(e.target.value)}
+                          placeholder={language === 'zh' ? '输入URL...' : 'Enter URL...'}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => setExtType('css')} className={`px-3 py-1.5 rounded text-xs font-medium ${extType === 'css' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700'}`}>CSS</button>
+                          <button onClick={() => setExtType('xpath')} className={`px-3 py-1.5 rounded text-xs font-medium ${extType === 'xpath' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700'}`}>XPath</button>
+                          <button onClick={() => setExtType('regex')} className={`px-3 py-1.5 rounded text-xs font-medium ${extType === 'regex' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700'}`}>Regex</button>
+                        </div>
+                        <textarea
+                          value={extSchema}
+                          onChange={(e) => setExtSchema(e.target.value)}
+                          placeholder={extType === 'css' ? 'CSS Selector: .product-title, .price' : extType === 'xpath' ? 'XPath: //div[@class="product"]' : 'Regex: \\d+\\.\\d{2}'}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm font-mono"
+                          rows={3}
+                        />
+                        <button
+                          onClick={handleExtract}
+                          disabled={!extUrl || !extSchema || isExtracting2}
+                          className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {isExtracting2 ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Network className="w-4 h-4" />}
+                          {isExtracting2 ? (language === 'zh' ? '提取中...' : 'Extracting...') : (language === 'zh' ? '开始提取' : 'Extract')}
+                        </button>
+                        {extResults && (
+                          <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{JSON.stringify(extResults, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Schema Generation Section */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-750 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-3 flex items-center gap-2">
+                        <Brain className="w-4 h-4" />
+                        {language === 'zh' ? 'LLM Schema生成' : 'LLM Schema Generation'}
+                      </h4>
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={genQuery}
+                          onChange={(e) => setGenQuery(e.target.value)}
+                          placeholder={language === 'zh' ? '例如: 提取产品名称、价格、评论数' : 'e.g., Extract product name, price, review count'}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        />
+                        <textarea
+                          value={genSchema}
+                          onChange={(e) => setGenSchema(e.target.value)}
+                          placeholder={language === 'zh' ? '生成的Schema将显示在这里...' : 'Generated schema will appear here...'}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm font-mono"
+                          rows={4}
+                        />
+                          <button
+                          onClick={handleGenerateSchema}
+                          disabled={!genQuery || isGenSchema}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {isGenSchema ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+                          {isGenSchema ? (language === 'zh' ? '生成中...' : 'Generating...') : (language === 'zh' ? '生成Schema' : 'Generate Schema')}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* v0.8.x New Features Section */}
+                    <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      <h4 className="text-sm font-medium text-indigo-700 dark:text-indigo-300 mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        {language === 'zh' ? 'Crawl4AI v0.8.x 新特性' : 'Crawl4AI v0.8.x New Features'}
+                        <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">NEW</span>
+                      </h4>
+                      <div className="space-y-3">
+                        <input
+                          type="url"
+                          value={v08Url}
+                          onChange={(e) => setV08Url(e.target.value)}
+                          placeholder={language === 'zh' ? '输入URL...' : 'Enter URL...'}
+                          className="w-full px-3 py-2 border border-indigo-300 dark:border-indigo-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        />
+                        
+                        {/* Feature Toggles */}
+                        <div className="flex flex-wrap gap-2">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-700 px-2 py-1 rounded">
+                            <input type="checkbox" checked={v08Prefetch} onChange={(e) => { setV08Prefetch(e.target.checked); setV08TextOnly(false); setV08CrashRecovery(false); setV08FullScan(false); }} className="rounded text-indigo-600" />
+                            Prefetch (5-10x)
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-700 px-2 py-1 rounded">
+                            <input type="checkbox" checked={v08TextOnly} onChange={(e) => { setV08TextOnly(e.target.checked); setV08Prefetch(false); setV08CrashRecovery(false); setV08FullScan(false); }} className="rounded text-indigo-600" />
+                            Text-Only (3-4x)
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-700 px-2 py-1 rounded">
+                            <input type="checkbox" checked={v08CrashRecovery} onChange={(e) => { setV08CrashRecovery(e.target.checked); setV08Prefetch(false); setV08TextOnly(false); setV08FullScan(false); }} className="rounded text-indigo-600" />
+                            Crash Recovery
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-700 px-2 py-1 rounded">
+                            <input type="checkbox" checked={v08FullScan} onChange={(e) => { setV08FullScan(e.target.checked); setV08Prefetch(false); setV08TextOnly(false); setV08CrashRecovery(false); }} className="rounded text-indigo-600" />
+                            Full Page Scan
+                          </label>
+                        </div>
+
+                        {/* Deep Crawl Options */}
+                        {(v08Prefetch || v08CrashRecovery) && (
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Max Depth</label>
+                              <input type="number" min="1" max="5" value={v08MaxDepth} onChange={(e) => setV08MaxDepth(parseInt(e.target.value) || 2)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Max Pages</label>
+                              <input type="number" min="10" max="500" value={v08MaxPages} onChange={(e) => setV08MaxPages(parseInt(e.target.value) || 50)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Strategy</label>
+                              <select value={v08Strategy} onChange={(e) => setV08Strategy(e.target.value as any)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm">
+                                <option value="bfs">BFS</option>
+                                <option value="dfs">DFS</option>
+                                <option value="best_first">Best-First</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Dynamic Viewport Options */}
+                        {!v08Prefetch && !v08TextOnly && !v08CrashRecovery && !v08FullScan && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Viewport Width</label>
+                              <input type="number" value={v08ViewportW} onChange={(e) => setV08ViewportW(parseInt(e.target.value) || 1280)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Viewport Height</label>
+                              <input type="number" value={v08ViewportH} onChange={(e) => setV08ViewportH(parseInt(e.target.value) || 720)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                                <input type="checkbox" checked={v08AdjustViewport} onChange={(e) => setV08AdjustViewport(e.target.checked)} className="rounded" />
+                                {language === 'zh' ? '自动调整视口到内容大小' : 'Auto-adjust viewport to content'}
+                              </label>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sticky Proxy */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={v08Proxy}
+                            onChange={(e) => setV08Proxy(e.target.value)}
+                            placeholder={language === 'zh' ? '代理地址 http://...' : 'Proxy http://...'}
+                            className="px-3 py-2 border border-indigo-300 dark:border-indigo-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                          />
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-700 px-3 py-2 rounded-lg">
+                            <input type="checkbox" checked={v08StickyProxy} onChange={(e) => setV08StickyProxy(e.target.checked)} className="rounded" />
+                            {language === 'zh' ? '粘性会话' : 'Sticky Session'}
+                          </label>
+                        </div>
+
+                        <button
+                          onClick={handleV08Crawl}
+                          disabled={!v08Url || isV08Crawling}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {isV08Crawling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                          {isV08Crawling ? (language === 'zh' ? '爬取中...' : 'Crawling...') : (language === 'zh' ? '开始v0.8.x爬取' : 'Start v0.8.x Crawl')}
+                        </button>
+                        {v08Results && (
+                          <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                            <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{JSON.stringify(v08Results, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
