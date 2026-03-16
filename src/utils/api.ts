@@ -2767,3 +2767,51 @@ export async function crawlWithFullPageScan(request: FullPageScanRequest): Promi
   
   return response.json();
 }
+
+// ============ Smart Auto-Crawl API ============
+export interface SmartCrawlRequest {
+  url: string;
+  max_depth?: number;
+  max_pages?: number;
+}
+
+export async function smartAutoCrawl(request: SmartCrawlRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/auto`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// ============ Analyze URL API ============
+export interface AnalyzeUrlRequest {
+  url: string;
+}
+
+export async function analyzeUrl(request: AnalyzeUrlRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}

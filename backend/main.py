@@ -3412,9 +3412,261 @@ async def crawl_fit_markdown(request: FitMarkdownRequest):
         return {
             "success": result.success,
             "url": result.url,
-            "fit_markdown": result.markdown.fit_markdown if result.markdown else None,
-            "raw_length": len(result.markdown.raw_markdown) if result.markdown else 0
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Smart Auto-Crawl API ============
+class SmartCrawlRequest(BaseModel):
+    url: str
+    max_depth: int = 2
+    max_pages: int = 50
+
+class StrategyRecommendation(BaseModel):
+    strategy: str
+    confidence: float
+    reason: str
+    features: List[str]
+
+@app.post("/crawl/auto")
+async def smart_auto_crawl(request: SmartCrawlRequest):
+    """Smart Auto-Crawl - 自动分析URL并选择最佳爬取策略"""
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    
+    try:
+        url = request.url.lower()
+        
+        anti_bot_domains = [
+            'bbc.com', 'nytimes.com', 'washingtonpost.com', 'theguardian.com',
+            'amazon.com', 'ebay.com', 'walmart.com', 'target.com',
+            'facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com',
+            'reddit.com', 'stackoverflow.com', 'github.com',
+            'netflix.com', 'spotify.com', 'hulu.com',
+            'news.google.com', 'wikipedia.org'
+        ]
+        
+        simple_domains = [
+            'example.com', 'httpbin.org', 'jsonplaceholder.typicode.com',
+            'placeholder.com', 'via.placeholder.com'
+        ]
+        
+        ecommerce_domains = [
+            'amazon.com', 'ebay.com', 'walmart.com', 'target.com', 'bestbuy.com',
+            'taobao.com', 'tmall.com', 'jd.com', 'aliexpress.com', 'shopify.com'
+        ]
+        
+        news_domains = [
+            'bbc.com', 'cnn.com', 'nytimes.com', 'theguardian.com', 
+            'washingtonpost.com', 'reuters.com', 'apnews.com'
+        ]
+        
+        recommendation = StrategyRecommendation(
+            strategy="basic",
+            confidence=0.5,
+            reason="Default strategy for unknown sites",
+            features=["basic_crawl"]
+        )
+        
+        selected_features = {}
+        
+        for domain in anti_bot_domains:
+            if domain in url:
+                recommendation = StrategyRecommendation(
+                    strategy="undetected",
+                    confidence=0.9,
+                    reason=f"Detected anti-bot protected site ({domain})",
+                    features=["undetected_browser", "stealth", "retry", "extended_timeout"]
+                )
+                break
+        
+        if recommendation.strategy == "basic":
+            for domain in simple_domains:
+                if domain in url:
+                    recommendation = StrategyRecommendation(
+                        strategy="text_only",
+                        confidence=0.95,
+                        reason=f"Simple static site ({domain})",
+                        features=["text_only", "fast"]
+                    )
+                    break
+        
+        if recommendation.strategy == "basic":
+            for domain in ecommerce_domains:
+                if domain in url:
+                    recommendation = StrategyRecommendation(
+                        strategy="stealth",
+                        confidence=0.85,
+                        reason=f"E-commerce site detected ({domain})",
+                        features=["stealth", "cookies", "session"]
+                    )
+                    break
+        
+        if recommendation.strategy == "basic":
+            for domain in news_domains:
+                if domain in url:
+                    recommendation = StrategyRecommendation(
+                        strategy="stealth",
+                        confidence=0.8,
+                        reason=f"News site detected ({domain})",
+                        features=["stealth", "extended_timeout"]
+                    )
+                    break
+        
+        if '.news.' in url or '/news/' in url or '/article/' in url:
+            if recommendation.strategy in ["basic", "text_only"]:
+                recommendation.strategy = "stealth"
+                recommendation.confidence = 0.7
+                recommendation.reason = "News/Article URL pattern detected"
+                recommendation.features = ["stealth", "extended_timeout"]
+        
+        if request.max_depth > 0:
+            recommendation.features.append("deep_crawl")
+        
+        strategy_name = recommendation.strategy
+        
+        if strategy_name == "undetected":
+            from crawl4ai import UndetectedAdapter
+            adapter = UndetectedAdapter()
+            browser_cfg = BrowserConfig(
+                headless=True,
+                enable_stealth=True,
+                browser_adapter=adapter
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=90000
+            )
+            result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+            
+        elif strategy_name == "stealth":
+            browser_cfg = BrowserConfig(
+                headless=True,
+                enable_stealth=True
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=90000
+            )
+            result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+            
+        elif strategy_name == "text_only":
+            browser_cfg = BrowserConfig(
+                text_mode=True,
+                headless=True
+            )
+            run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+            result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+            
+        elif strategy_name == "deep_crawl":
+            from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
+            strategy = BFSDeepCrawlStrategy(
+                max_depth=request.max_depth,
+                max_pages=request.max_pages
+            )
+            run_config = CrawlerRunConfig(
+                deep_crawl_strategy=strategy,
+                cache_mode=CacheMode.BYPASS
+            )
+            result = await crawler.arun(url=request.url, config=run_config)
+            
+        else:
+            run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+            result = await crawler.arun(url=request.url, config=run_config)
+        
+        return {
+            "success": result.success,
+            "url": result.url,
+            "strategy": {
+                "used": strategy_name,
+                "recommendation": recommendation.model_dump()
+            },
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "links_count": len(result.links) if result.links else 0,
+            "images_count": len(result.media.get("images", [])) if result.media else 0
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ Analyze URL API ============
+class AnalyzeUrlRequest(BaseModel):
+    url: str
+
+@app.post("/crawl/analyze")
+async def analyze_url(request: AnalyzeUrlRequest):
+    """Analyze URL - 分析URL并推荐最佳爬取策略"""
+    try:
+        url = request.url.lower()
+        
+        analysis = {
+            "url": request.url,
+            "detected": [],
+            "recommended_strategy": "basic",
+            "confidence": 0.5,
+            "tips": []
+        }
+        
+        anti_bot_domains = [
+            ('bbc.com', 'BBC News - Strong anti-bot protection'),
+            ('nytimes.com', 'NY Times - Requires subscription/cookies'),
+            ('washingtonpost.com', 'Washington Post - Paywall detected'),
+            ('theguardian.com', 'The Guardian - Region restrictions'),
+            ('amazon.com', 'Amazon - Sophisticated bot detection'),
+            ('ebay.com', 'eBay - Anti-scraping measures'),
+            ('facebook.com', 'Facebook - Strict anti-bot'),
+            ('twitter.com', 'Twitter/X - Heavy protection'),
+            ('instagram.com', 'Instagram - Account required'),
+            ('reddit.com', 'Reddit - Rate limiting active'),
+        ]
+        
+        for domain, description in anti_bot_domains:
+            if domain in url:
+                analysis["detected"].append(description)
+                analysis["recommended_strategy"] = "undetected"
+                analysis["confidence"] = 0.9
+                analysis["tips"].append("Use Undetected Browser mode")
+                analysis["tips"].append("Consider using proxies")
+                break
+        
+        if analysis["recommended_strategy"] == "basic":
+            ecommerce_domains = [
+                ('amazon.com', 'E-commerce - May need stealth'),
+                ('ebay.com', 'E-commerce platform'),
+                ('walmart.com', 'Walmart - Anti-bot active'),
+                ('taobao.com', 'Taobao - Chinese e-commerce'),
+                ('jd.com', 'JD.com - Complex anti-bot'),
+            ]
+            for domain, description in ecommerce_domains:
+                if domain in url:
+                    analysis["detected"].append(description)
+                    analysis["recommended_strategy"] = "stealth"
+                    analysis["confidence"] = 0.85
+                    analysis["tips"].append("Use Stealth mode")
+                    break
+        
+        if '.gov' in url or '.edu' in url:
+            analysis["tips"].append("Government/Edu sites may have strict access")
+        
+        if '/api/' in url or '.json' in url:
+            analysis["recommended_strategy"] = "text_only"
+            analysis["confidence"] = 0.95
+            analysis["tips"].append("API endpoints - use fast text-only mode")
+        
+        if '/news/' in url or '/article/' in url or '/blog/' in url:
+            if analysis["recommended_strategy"] == "basic":
+                analysis["recommended_strategy"] = "stealth"
+                analysis["confidence"] = 0.7
+                analysis["tips"].append("News/Article page - consider stealth mode")
+        
+        if not analysis["tips"]:
+            analysis["tips"].append("Standard crawl should work")
+            analysis["tips"].append("Enable screenshot if needed for debugging")
+        
+        return analysis
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

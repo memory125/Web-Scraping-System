@@ -168,6 +168,14 @@ export default function App() {
   const [isV08Crawling, setIsV08Crawling] = useState(false);
   const [v08Results, setV08Results] = useState<any>(null);
   
+  // Smart Auto-Crawl state
+  const [autoUrl, setAutoUrl] = useState('');
+  const [autoMaxDepth, setAutoMaxDepth] = useState(1);
+  const [autoMaxPages, setAutoMaxPages] = useState(20);
+  const [isAutoCrawling, setIsAutoCrawling] = useState(false);
+  const [autoResults, setAutoResults] = useState<any>(null);
+  const [urlAnalysis, setUrlAnalysis] = useState<any>(null);
+  
   // Extraction state
   const [extUrl, setExtUrl] = useState('');
   const [extSchema, setExtSchema] = useState('');
@@ -1099,6 +1107,36 @@ export default function App() {
       addLog('error', `${language === 'zh' ? 'v0.8.x爬取失败' : 'v0.8.x crawl failed'}: ${err.message}`);
     } finally {
       setIsV08Crawling(false);
+    }
+  };
+
+  // Smart Auto-Crawl Handler
+  const handleAutoCrawl = async () => {
+    if (!autoUrl) return;
+    setIsAutoCrawling(true);
+    setAutoResults(null);
+    setUrlAnalysis(null);
+    try {
+      const { smartAutoCrawl, analyzeUrl } = await import('./utils/api');
+      
+      // First analyze the URL
+      const analysis = await analyzeUrl({ url: autoUrl });
+      setUrlAnalysis(analysis);
+      addLog('info', `${language === 'zh' ? 'URL分析完成' : 'URL analysis'}: ${analysis.recommended_strategy} (${Math.round(analysis.confidence * 100)}% ${language === 'zh' ? '置信度' : 'confidence'})`);
+      
+      // Then auto-crawl with best strategy
+      const result = await smartAutoCrawl({
+        url: autoUrl,
+        max_depth: autoMaxDepth,
+        max_pages: autoMaxPages
+      });
+      
+      setAutoResults(result);
+      addLog('success', `${language === 'zh' ? '智能爬取完成' : 'Smart crawl completed'}! ${language === 'zh' ? '使用策略' : 'Strategy'}: ${result.strategy?.used} (${language === 'zh' ? '内容长度' : 'Content length'}: ${result.markdown_length})`);
+    } catch (err: any) {
+      addLog('error', `${language === 'zh' ? '智能爬取失败' : 'Smart crawl failed'}: ${err.message}`);
+    } finally {
+      setIsAutoCrawling(false);
     }
   };
 
@@ -2922,6 +2960,107 @@ export default function App() {
                         {v08Results && (
                           <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-indigo-200 dark:border-indigo-700">
                             <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{JSON.stringify(v08Results, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Smart Auto-Crawl Section */}
+                    <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      <h4 className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-3 flex items-center gap-2">
+                        <Brain className="w-4 h-4" />
+                        {language === 'zh' ? '智能自动爬取' : 'Smart Auto-Crawl'}
+                        <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full">AI</span>
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                        {language === 'zh' ? '自动分析URL并选择最佳爬取策略，无需手动选择' : 'Automatically analyze URL and select best crawling strategy'}
+                      </p>
+                      <div className="space-y-3">
+                        <input
+                          type="url"
+                          value={autoUrl}
+                          onChange={(e) => setAutoUrl(e.target.value)}
+                          placeholder={language === 'zh' ? '输入任意URL，系统自动选择最佳策略...' : 'Enter any URL, system auto-selects best strategy...'}
+                          className="w-full px-3 py-2 border border-emerald-300 dark:border-emerald-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        />
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">{language === 'zh' ? '爬取深度' : 'Crawl Depth'}</label>
+                            <input type="number" min="0" max="5" value={autoMaxDepth} onChange={(e) => setAutoMaxDepth(parseInt(e.target.value) || 1)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">{language === 'zh' ? '最大页面数' : 'Max Pages'}</label>
+                            <input type="number" min="1" max="500" value={autoMaxPages} onChange={(e) => setAutoMaxPages(parseInt(e.target.value) || 20)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
+                          </div>
+                        </div>
+
+                        {/* URL Analysis Display */}
+                        {urlAnalysis && (
+                          <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-emerald-200 dark:border-emerald-700">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                urlAnalysis.recommended_strategy === 'undetected' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
+                                urlAnalysis.recommended_strategy === 'stealth' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' :
+                                urlAnalysis.recommended_strategy === 'text_only' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                                'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              }`}>
+                                {urlAnalysis.recommended_strategy.toUpperCase()}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {Math.round(urlAnalysis.confidence * 100)}% {language === 'zh' ? '置信度' : 'confidence'}
+                              </span>
+                            </div>
+                            {urlAnalysis.detected && urlAnalysis.detected.length > 0 && (
+                              <div className="mb-2">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{language === 'zh' ? '检测到:' : 'Detected:'}</span>
+                                <ul className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                  {urlAnalysis.detected.map((item: string, idx: number) => (
+                                    <li key={idx}>• {item}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{language === 'zh' ? '建议:' : 'Tips:'}</span>
+                              <ul className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                {urlAnalysis.tips?.map((tip: string, idx: number) => (
+                                  <li key={idx}>• {tip}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={handleAutoCrawl}
+                          disabled={!autoUrl || isAutoCrawling}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {isAutoCrawling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+                          {isAutoCrawling ? (language === 'zh' ? '智能爬取中...' : 'Smart Crawling...') : (language === 'zh' ? '智能自动爬取' : 'Smart Auto-Crawl')}
+                        </button>
+                        
+                        {autoResults && (
+                          <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-emerald-200 dark:border-emerald-700">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                                {language === 'zh' ? '爬取成功!' : 'Crawl Successful!'}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {language === 'zh' ? '使用策略' : 'Strategy'}: <strong>{autoResults.strategy?.used}</strong>
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {language === 'zh' ? '内容长度' : 'Content length'}: {autoResults.markdown_length} | 
+                              {language === 'zh' ? '链接数' : 'Links'}: {autoResults.links_count} |
+                              {language === 'zh' ? '图片数' : 'Images'}: {autoResults.images_count}
+                            </div>
+                            <details className="mt-2">
+                              <summary className="text-xs text-slate-500 cursor-pointer">{language === 'zh' ? '查看详情' : 'View Details'}</summary>
+                              <pre className="mt-2 text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{JSON.stringify(autoResults, null, 2)}</pre>
+                            </details>
                           </div>
                         )}
                       </div>
