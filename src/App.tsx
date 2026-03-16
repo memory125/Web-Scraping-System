@@ -1152,12 +1152,17 @@ export default function App() {
     setIsHttpCrawling(true);
     setHttpResults(null);
     try {
-      const { httpOnlyCrawl } = await import('./utils/api');
-      const result = await httpOnlyCrawl({ url: autoUrl });
+      const { smartAutoCrawl } = await import('./utils/api');
+      // Use smart auto with empty proxy to trigger HTTP fallback
+      const result = await smartAutoCrawl({ 
+        url: autoUrl, 
+        max_depth: 0,
+        max_pages: 1
+      });
       setHttpResults(result);
-      addLog('success', `${language === 'zh' ? 'HTTP爬取完成' : 'HTTP crawl completed'}! ${language === 'zh' ? '内容长度' : 'Content length'}: ${result.markdown_length}, ${language === 'zh' ? '状态码' : 'Status'}: ${result.status_code}`);
+      addLog('success', `${language === 'zh' ? '爬取完成' : 'Crawl completed'}! ${language === 'zh' ? '内容长度' : 'Content length'}: ${result.markdown_length}, Strategy: ${result.strategy?.used}`);
     } catch (err: any) {
-      addLog('error', `${language === 'zh' ? 'HTTP爬取失败' : 'HTTP crawl failed'}: ${err.message}`);
+      addLog('error', `${language === 'zh' ? '爬取失败' : 'Crawl failed'}: ${err.message}`);
     } finally {
       setIsHttpCrawling(false);
     }
