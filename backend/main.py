@@ -3528,20 +3528,31 @@ async def smart_auto_crawl(request: SmartCrawlRequest):
         strategy_name = recommendation.strategy
         
         if strategy_name == "undetected":
-            from crawl4ai import UndetectedAdapter
-            adapter = UndetectedAdapter()
-            browser_cfg = BrowserConfig(
-                headless=True,
-                enable_stealth=True,
-                browser_adapter=adapter
-            )
-            run_config = CrawlerRunConfig(
-                cache_mode=CacheMode.BYPASS,
-                page_timeout=90000
-            )
-            result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
-            
-        elif strategy_name == "stealth":
+            try:
+                from crawl4ai import UndetectedAdapter
+                adapter = UndetectedAdapter()
+                browser_cfg = BrowserConfig(
+                    headless=True,
+                    enable_stealth=True,
+                    browser_adapter=adapter
+                )
+                run_config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS,
+                    page_timeout=90000
+                )
+                result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+            except (ImportError, Exception):
+                browser_cfg = BrowserConfig(
+                    headless=True,
+                    enable_stealth=True,
+                )
+                run_config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS,
+                    page_timeout=120000
+                )
+                result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+                strategy_name = "stealth"
+        if strategy_name == "stealth":
             browser_cfg = BrowserConfig(
                 headless=True,
                 enable_stealth=True
@@ -3551,7 +3562,6 @@ async def smart_auto_crawl(request: SmartCrawlRequest):
                 page_timeout=90000
             )
             result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
-            
         elif strategy_name == "text_only":
             browser_cfg = BrowserConfig(
                 text_mode=True,
@@ -3559,7 +3569,6 @@ async def smart_auto_crawl(request: SmartCrawlRequest):
             )
             run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
             result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
-            
         elif strategy_name == "deep_crawl":
             from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
             strategy = BFSDeepCrawlStrategy(
@@ -3571,7 +3580,6 @@ async def smart_auto_crawl(request: SmartCrawlRequest):
                 cache_mode=CacheMode.BYPASS
             )
             result = await crawler.arun(url=request.url, config=run_config)
-            
         else:
             run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
             result = await crawler.arun(url=request.url, config=run_config)
