@@ -1589,7 +1589,26 @@ export default function App() {
 
               {activeTab === 'queue' && (
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
-                  {/* Basic Tab - URL Input + Priority + Sitemap */}
+                  {/* Crawl Mode Tabs - Always show */}
+                  <div className="flex gap-1 p-2 bg-slate-100 dark:bg-slate-750 rounded-lg">
+                    <button onClick={() => setActiveCrawlTab('basic')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'basic' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '基础' : 'Basic'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('deep')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'deep' ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '深度' : 'Deep'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('adaptive')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'adaptive' ? 'bg-cyan-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '自适应' : 'Adaptive'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('ecommerce')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'ecommerce' ? 'bg-orange-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '电商' : 'E-comm'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('seller')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'seller' ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '卖家' : 'Seller'}
+                    </button>
+                  </div>
+
+                  {/* Basic Tab Content */}
                   {activeCrawlTab === 'basic' && (
                   <>
                     <div className="flex gap-2">
@@ -1636,27 +1655,8 @@ export default function App() {
                   </>
                   )}
 
-                  {/* Crawl Mode Tabs */}
-                  <div className="flex gap-1 p-2 bg-slate-100 dark:bg-slate-750 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
-                    <button onClick={() => setActiveCrawlTab('basic')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'basic' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                      {language === 'zh' ? '基础' : 'Basic'}
-                    </button>
-                    <button onClick={() => setActiveCrawlTab('deep')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'deep' ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                      {language === 'zh' ? '深度' : 'Deep'}
-                    </button>
-                    <button onClick={() => setActiveCrawlTab('adaptive')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'adaptive' ? 'bg-cyan-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                      {language === 'zh' ? '自适应' : 'Adaptive'}
-                    </button>
-                    <button onClick={() => setActiveCrawlTab('ecommerce')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'ecommerce' ? 'bg-orange-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                      {language === 'zh' ? '电商' : 'E-comm'}
-                    </button>
-                    <button onClick={() => setActiveCrawlTab('seller')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'seller' ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                      {language === 'zh' ? '卖家' : 'Seller'}
-                    </button>
-                  </div>
-
+                  {/* Deep Crawl Section */}
                   {activeCrawlTab === 'deep' && (
-                  /* Deep Crawl Section */
                   <div className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-b border-purple-200 dark:border-purple-800">
                     <div className="flex items-center gap-2 mb-2">
                       <Network className="w-4 h-4 text-purple-600 dark:text-purple-400" />
