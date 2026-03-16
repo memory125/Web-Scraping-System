@@ -621,7 +621,7 @@ async def crawl_url(request: CrawlRequest):
             run_config = CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS,
                 word_count_threshold=request.word_count_threshold,
-                wait_for=request.wait_for or "domcontentloaded",
+                wait_for=request.wait_for,
                 wait_until=request.wait_until,
                 page_timeout=request.page_timeout,
                 delay_before_return_html=request.delay_before_return_html,
