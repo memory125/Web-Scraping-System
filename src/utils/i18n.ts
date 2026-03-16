@@ -57,6 +57,15 @@ export interface Translations {
   crawlStrategy: string;
   startDeepCrawl: string;
   deepCrawling: string;
+  ecommerceExtract: string;
+  ecommerceSettings: string;
+  ecommerceUrl: string;
+  ecommercePlatform: string;
+  ecommerceType: string;
+  startExtract: string;
+  extracting: string;
+  extractionResults: string;
+  noResults: string;
   parsing: string;
   noUrlsFound: string;
   progress: string;
@@ -129,7 +138,7 @@ export const translations: Record<Language, Translations> = {
   en: {
     title: 'Crawler Controller',
     subtitle: 'Manage and execute distributed web scraping tasks',
-    queue: 'Queue',
+    queue: 'Crawler',
     history: 'History',
     schedule: 'Schedule',
     deepCrawl: 'Deep Crawl',
@@ -183,6 +192,15 @@ export const translations: Record<Language, Translations> = {
     crawlStrategy: 'Crawl Strategy',
     startDeepCrawl: 'Start Deep Crawl',
     deepCrawling: 'Deep Crawling...',
+    ecommerceExtract: 'E-commerce Extract',
+    ecommerceSettings: 'E-commerce Settings',
+    ecommerceUrl: 'Product URL',
+    ecommercePlatform: 'Platform',
+    ecommerceType: 'Extract Type',
+    startExtract: 'Start Extraction',
+    extracting: 'Extracting...',
+    extractionResults: 'Extraction Results',
+    noResults: 'No results found',
     parsing: 'Parsing...',
     noUrlsFound: 'No URLs found',
     progress: 'Progress',
@@ -252,7 +270,7 @@ export const translations: Record<Language, Translations> = {
   zh: {
     title: '爬虫控制器',
     subtitle: '管理并执行分布式网页爬取任务',
-    queue: '队列',
+    queue: '爬虫',
     history: '历史',
     schedule: '定时',
     deepCrawl: '深度爬取',
@@ -306,6 +324,14 @@ export const translations: Record<Language, Translations> = {
     crawlStrategy: '爬取策略',
     startDeepCrawl: '开始深度爬取',
     deepCrawling: '深度爬取中...',
+    ecommerceExtract: '电商抓取',
+    ecommerceSettings: '电商设置',
+    ecommerceUrl: '商品网址',
+    ecommercePlatform: '平台',
+    ecommerceType: '抓取类型',
+    startExtract: '开始抓取',
+    extracting: '抓取中...',
+    extractionResults: '抓取结果',
     parsing: '解析中...',
     noUrlsFound: '未找到网址',
     progress: '进度',

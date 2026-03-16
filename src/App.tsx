@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Target, AppConfig, LogEntry, HistoryRecord, ScheduledTask, CrawlState, Account, DownloadTask, ResumeToken, CookieSync, AIAnalysis, StorageConfig, AIModelConfig } from './types';
-import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages, Save, FolderOpen, User, Key, Brain, Zap, Network } from 'lucide-react';
+import { Play, Square, Upload, Download, Plus, Trash2, FileJson, FileSpreadsheet, Settings, Pause, X, Clock, FileText, RefreshCw, Moon, Sun, Check, ChevronDown, ChevronUp, BarChart3, Activity, Globe, Layers, Languages, Save, FolderOpen, User, Key, Brain, Zap, Network, ShoppingCart, Store } from 'lucide-react';
 import { crawlUrl, parseSitemap, PROXY_LIST } from './utils/crawler';
 import { crawlWithBackend, checkBackendHealth } from './utils/api';
 import { initDB, saveTargets, loadTargets, saveHistory, loadHistory, saveSettings, loadSettings, clearAllData } from './utils/db';
@@ -48,6 +48,7 @@ export default function App() {
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
   const [newUrl, setNewUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage'>('queue');
+  const [activeCrawlTab, setActiveCrawlTab] = useState<'basic' | 'deep' | 'adaptive' | 'ecommerce' | 'seller'>('basic');
   const [backendConfig, setBackendConfig] = useState<{ enabled: boolean; url: string }>({ enabled: false, url: 'http://localhost:8000' });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [downloadTasks, setDownloadTasks] = useState<DownloadTask[]>([]);
@@ -106,6 +107,33 @@ export default function App() {
   const [deepCrawlStrategy, setDeepCrawlStrategy] = useState<'bfs' | 'dfs' | 'best_first'>('bfs');
   const [isDeepCrawling, setIsDeepCrawling] = useState(false);
   const [deepCrawlResults, setDeepCrawlResults] = useState<any[]>([]);
+  
+  // Adaptive crawl state
+  const [adaptiveCrawlUrl, setAdaptiveCrawlUrl] = useState('');
+  const [adaptiveCrawlQuery, setAdaptiveCrawlQuery] = useState('');
+  const [adaptiveCrawlConfidence, setAdaptiveCrawlConfidence] = useState(0.7);
+  const [adaptiveCrawlMaxPages, setAdaptiveCrawlMaxPages] = useState(20);
+  const [adaptiveCrawlTopKLinks, setAdaptiveCrawlTopKLinks] = useState(3);
+  const [adaptiveCrawlStrategy, setAdaptiveCrawlStrategy] = useState<'statistical' | 'embedding'>('statistical');
+  const [isAdaptiveCrawling, setIsAdaptiveCrawling] = useState(false);
+  const [adaptiveCrawlResults, setAdaptiveCrawlResults] = useState<any>(null);
+  
+  // E-commerce extraction state
+  const [ecommerceUrl, setEcommerceUrl] = useState('');
+  const [ecommercePlatform, setEcommercePlatform] = useState<string>('auto');
+  const [ecommerceType, setEcommerceType] = useState<'all' | 'listings' | 'prices'>('all');
+  const [ecommerceCookies, setEcommerceCookies] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [ecommerceResults, setEcommerceResults] = useState<any[]>([]);
+  
+  // Seller deep crawl state
+  const [sellerUrl, setSellerUrl] = useState('');
+  const [sellerPlatform, setSellerPlatform] = useState<string>('auto');
+  const [sellerMaxPages, setSellerMaxPages] = useState(5);
+  const [crawlProducts, setCrawlProducts] = useState(true);
+  const [crawlReviews, setCrawlReviews] = useState(false);
+  const [isSellerCrawling, setIsSellerCrawling] = useState(false);
+  const [sellerResults, setSellerResults] = useState<any>(null);
   
   const crawlingRef = useRef(crawlState);
   crawlingRef.current = crawlState;
@@ -843,6 +871,98 @@ export default function App() {
     }
   };
 
+  const handleAdaptiveCrawl = async () => {
+    if (!adaptiveCrawlUrl || !adaptiveCrawlQuery) return;
+    if (!backendConfig.enabled) {
+      addLog('error', language === 'zh' ? '请先启用后端服务' : 'Please enable backend service first');
+      return;
+    }
+
+    setIsAdaptiveCrawling(true);
+    setAdaptiveCrawlResults(null);
+    addLog('info', language === 'zh' ? `开始自适应爬取: ${adaptiveCrawlUrl}` : `Starting adaptive crawl: ${adaptiveCrawlUrl}`);
+
+    try {
+      const { adaptiveCrawl } = await import('./utils/api');
+      
+      const result = await adaptiveCrawl({
+        url: adaptiveCrawlUrl,
+        query: adaptiveCrawlQuery,
+        confidence_threshold: adaptiveCrawlConfidence,
+        max_pages: adaptiveCrawlMaxPages,
+        top_k_links: adaptiveCrawlTopKLinks,
+        strategy: adaptiveCrawlStrategy
+      });
+
+      setAdaptiveCrawlResults(result);
+      addLog('success', language === 'zh' ? `自适应爬取完成: ${result.pages_crawled} 页` : `Adaptive crawl completed: ${result.pages_crawled} pages`);
+    } catch (err: any) {
+      addLog('error', language === 'zh' ? `自适应爬取失败: ${err.message}` : `Adaptive crawl failed: ${err.message}`);
+    } finally {
+      setIsAdaptiveCrawling(false);
+    }
+  };
+
+  const handleEcommerceExtract = async () => {
+    if (!ecommerceUrl) return;
+    if (!backendConfig.enabled) {
+      addLog('error', language === 'zh' ? '请先启用后端服务' : 'Please enable backend service first');
+      return;
+    }
+
+    setIsExtracting(true);
+    setEcommerceResults([]);
+    addLog('info', language === 'zh' ? `开始电商提取: ${ecommerceUrl}` : `Starting e-commerce extraction: ${ecommerceUrl}`);
+
+    try {
+      const { extractEcommerce } = await import('./utils/api');
+      
+      const result = await extractEcommerce({
+        url: ecommerceUrl,
+        platform: ecommercePlatform,
+        extraction_type: ecommerceType,
+        cookies: ecommerceCookies || undefined
+      });
+
+      setEcommerceResults(result.listings || []);
+      addLog('success', language === 'zh' ? `电商提取完成: ${result.listings?.length || 0} 个商品` : `E-commerce extraction completed: ${result.listings?.length || 0} products`);
+    } catch (err: any) {
+      addLog('error', language === 'zh' ? `电商提取失败: ${err.message}` : `E-commerce extraction failed: ${err.message}`);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleSellerDeepCrawl = async () => {
+    if (!sellerUrl) return;
+    if (!backendConfig.enabled) {
+      addLog('error', language === 'zh' ? '请先启用后端服务' : 'Please enable backend service first');
+      return;
+    }
+
+    setIsSellerCrawling(true);
+    setSellerResults(null);
+    addLog('info', language === 'zh' ? `开始卖家爬取: ${sellerUrl}` : `Starting seller crawl: ${sellerUrl}`);
+
+    try {
+      const { deepCrawlWithBackend } = await import('./utils/api');
+      
+      const results = await deepCrawlWithBackend({
+        urls: [sellerUrl],
+        max_depth: 2,
+        max_pages: sellerMaxPages,
+        strategy: 'bfs'
+      });
+
+      setSellerResults({ total_products: results.length, products: results });
+      addLog('success', language === 'zh' ? `卖家爬取完成: ${results.length} 个页面` : `Seller crawl completed: ${results.length} pages`);
+    } catch (err: any) {
+      addLog('error', language === 'zh' ? `卖家爬取失败: ${err.message}` : `Seller crawl failed: ${err.message}`);
+    } finally {
+      setIsSellerCrawling(false);
+    }
+  };
+
   const handleAddUrl = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newUrl) return;
@@ -1469,49 +1589,74 @@ export default function App() {
 
               {activeTab === 'queue' && (
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
-                  <div className="flex gap-2">
-                    <form onSubmit={handleAddUrl} className="flex-1 flex gap-2">
-                      <input
-                        type="url"
-                        value={newUrl}
-                        onChange={(e) => setNewUrl(e.target.value)}
-                        placeholder={t.enterUrl}
-                        className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                      <select
-                        value={newUrlPriority}
-                        onChange={(e) => setNewUrlPriority(parseInt(e.target.value))}
-                        className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
-                      >
-                        <option value={1}>{t.low}</option>
-                        <option value={3}>{t.mediumLow}</option>
-                        <option value={5}>{t.normal}</option>
-                        <option value={7}>{t.mediumHigh}</option>
-                        <option value={10}>{t.high}</option>
-                      </select>
-                      <button type="submit" className="px-4 py-2 bg-slate-800 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-900 dark:hover:bg-slate-500 transition-colors inline-flex items-center gap-2 font-medium">
-                        <Plus className="w-4 h-4" /> {t.addUrl}
-                      </button>
-                    </form>
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-1 flex gap-2">
-                      <input
-                        type="url"
-                        value={sitemapUrl}
-                        onChange={(e) => setSitemapUrl(e.target.value)}
-                        placeholder={t.parseSitemap + '...'}
-                        className="flex-1 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSitemapParse(); } }}
-                      />
-                      <button onClick={handleSitemapParse} disabled={isLoadingSitemap} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm inline-flex items-center gap-2">
-                        <Globe className="w-4 h-4" />
-                        {isLoadingSitemap ? t.parsing : t.parseSitemap}
-                      </button>
+                  {/* Basic Tab - URL Input + Priority + Sitemap */}
+                  {activeCrawlTab === 'basic' && (
+                  <>
+                    <div className="flex gap-2">
+                      <form onSubmit={handleAddUrl} className="flex-1 flex gap-2">
+                        <input
+                          type="url"
+                          value={newUrl}
+                          onChange={(e) => setNewUrl(e.target.value)}
+                          placeholder={t.enterUrl}
+                          className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <select
+                          value={newUrlPriority}
+                          onChange={(e) => setNewUrlPriority(parseInt(e.target.value))}
+                          className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        >
+                          <option value={1}>{t.low}</option>
+                          <option value={3}>{t.mediumLow}</option>
+                          <option value={5}>{t.normal}</option>
+                          <option value={7}>{t.mediumHigh}</option>
+                          <option value={10}>{t.high}</option>
+                        </select>
+                        <button type="submit" className="px-4 py-2 bg-slate-800 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-900 dark:hover:bg-slate-500 transition-colors inline-flex items-center gap-2 font-medium">
+                          <Plus className="w-4 h-4" /> {t.addUrl}
+                        </button>
+                      </form>
                     </div>
+                    <div className="flex gap-2 items-center">
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="url"
+                          value={sitemapUrl}
+                          onChange={(e) => setSitemapUrl(e.target.value)}
+                          placeholder={t.parseSitemap + '...'}
+                          className="flex-1 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSitemapParse(); } }}
+                        />
+                        <button onClick={handleSitemapParse} disabled={isLoadingSitemap} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm inline-flex items-center gap-2">
+                          <Globe className="w-4 h-4" />
+                          {isLoadingSitemap ? t.parsing : t.parseSitemap}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                  )}
+
+                  {/* Crawl Mode Tabs */}
+                  <div className="flex gap-1 p-2 bg-slate-100 dark:bg-slate-750 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+                    <button onClick={() => setActiveCrawlTab('basic')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'basic' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '基础' : 'Basic'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('deep')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'deep' ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '深度' : 'Deep'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('adaptive')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'adaptive' ? 'bg-cyan-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '自适应' : 'Adaptive'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('ecommerce')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'ecommerce' ? 'bg-orange-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '电商' : 'E-comm'}
+                    </button>
+                    <button onClick={() => setActiveCrawlTab('seller')} className={`px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap ${activeCrawlTab === 'seller' ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                      {language === 'zh' ? '卖家' : 'Seller'}
+                    </button>
                   </div>
-                  
-                  {/* Deep Crawl Section */}
+
+                  {activeCrawlTab === 'deep' && (
+                  /* Deep Crawl Section */
                   <div className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-b border-purple-200 dark:border-purple-800">
                     <div className="flex items-center gap-2 mb-2">
                       <Network className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -1570,7 +1715,207 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  
+                  )}
+
+                  {/* Adaptive Crawl Section */}
+                  {activeCrawlTab === 'adaptive' && (
+                  <div className="p-3 bg-gradient-to-r from-cyan-50 to-teal-50 dark:from-cyan-900/20 dark:to-teal-900/20 border-b border-cyan-200 dark:border-cyan-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                      <span className="text-sm font-medium text-cyan-700 dark:text-cyan-300">{language === 'zh' ? '智能自适应爬取' : 'Adaptive Crawl'}</span>
+                    </div>
+                    <div className="flex gap-2 items-center flex-wrap mb-2">
+                      <input
+                        type="url"
+                        value={adaptiveCrawlUrl}
+                        onChange={(e) => setAdaptiveCrawlUrl(e.target.value)}
+                        placeholder={language === 'zh' ? '输入起始URL...' : 'Enter starting URL...'}
+                        className="flex-1 min-w-[200px] px-3 py-1.5 border border-cyan-300 dark:border-cyan-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={adaptiveCrawlQuery}
+                        onChange={(e) => setAdaptiveCrawlQuery(e.target.value)}
+                        placeholder={language === 'zh' ? '查询关键词...' : 'Search query...'}
+                        className="flex-1 min-w-[150px] px-3 py-1.5 border border-cyan-300 dark:border-cyan-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdaptiveCrawl(); } }}
+                      />
+                    </div>
+                    <div className="flex gap-2 items-center flex-wrap">
+                      <select
+                        value={adaptiveCrawlStrategy}
+                        onChange={(e) => setAdaptiveCrawlStrategy(e.target.value as 'statistical' | 'embedding')}
+                        className="px-2 py-1.5 border border-cyan-300 dark:border-cyan-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                      >
+                        <option value="statistical">{language === 'zh' ? '统计(快)' : 'Statistical'}</option>
+                        <option value="embedding">{language === 'zh' ? '嵌入(准)' : 'Embedding'}</option>
+                      </select>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-500">{language === 'zh' ? '置信度' : 'Conf'}</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="1"
+                          value={adaptiveCrawlConfidence}
+                          onChange={(e) => setAdaptiveCrawlConfidence(parseFloat(e.target.value) || 0.7)}
+                          className="w-16 px-2 py-1.5 border border-cyan-300 dark:border-cyan-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-500">{language === 'zh' ? '最大页数' : 'Max'}</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={adaptiveCrawlMaxPages}
+                          onChange={(e) => setAdaptiveCrawlMaxPages(parseInt(e.target.value) || 20)}
+                          className="w-16 px-2 py-1.5 border border-cyan-300 dark:border-cyan-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                        />
+                      </div>
+                      <button 
+                        onClick={handleAdaptiveCrawl} 
+                        disabled={isAdaptiveCrawling || !adaptiveCrawlUrl || !adaptiveCrawlQuery || !backendConfig.enabled}
+                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-400 text-white rounded-lg text-sm inline-flex items-center gap-2"
+                      >
+                        <Zap className="w-4 h-4" />
+                        {isAdaptiveCrawling ? (language === 'zh' ? '爬取中...' : 'Crawling...') : (language === 'zh' ? '开始爬取' : 'Start')}
+                      </button>
+                    </div>
+                    {adaptiveCrawlResults && (
+                      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '页数' : 'Pages'}</span>: {adaptiveCrawlResults.pages_crawled}
+                        </div>
+                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '置信度' : 'Conf'}</span>: {(adaptiveCrawlResults.confidence * 100).toFixed(0)}%
+                        </div>
+                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '停止' : 'Stopped'}</span>: {adaptiveCrawlResults.stopped_reason}
+                        </div>
+                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                          <span>{language === 'zh' ? '覆盖' : 'Coverage'}</span>: {(adaptiveCrawlResults.coverage_score * 100).toFixed(0)}%
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  )}
+
+                  {/* E-commerce Extraction Section */}
+                  {activeCrawlTab === 'ecommerce' && (
+                  <div className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-b border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShoppingCart className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                      <span className="text-sm font-medium text-orange-700 dark:text-orange-300">{language === 'zh' ? '电商商品提取' : 'E-commerce Extract'}</span>
+                    </div>
+                    <div className="flex gap-2 items-center flex-wrap">
+                      <input
+                        type="url"
+                        value={ecommerceUrl}
+                        onChange={(e) => setEcommerceUrl(e.target.value)}
+                        placeholder={language === 'zh' ? '输入商品列表页URL...' : 'Enter product listing URL...'}
+                        className="flex-1 min-w-[200px] px-3 py-1.5 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEcommerceExtract(); } }}
+                      />
+                      <select
+                        value={ecommercePlatform}
+                        onChange={(e) => setEcommercePlatform(e.target.value)}
+                        className="px-2 py-1.5 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                      >
+                        <option value="auto">{language === 'zh' ? '自动' : 'Auto'}</option>
+                        <option value="amazon">Amazon</option>
+                        <option value="ebay">eBay</option>
+                        <option value="taobao">淘宝</option>
+                        <option value="tmall">天猫</option>
+                        <option value="jd">京东</option>
+                        <option value="shopify">Shopify</option>
+                      </select>
+                      <select
+                        value={ecommerceType}
+                        onChange={(e) => setEcommerceType(e.target.value as 'all' | 'listings' | 'prices')}
+                        className="px-2 py-1.5 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                      >
+                        <option value="all">{language === 'zh' ? '全部' : 'All'}</option>
+                        <option value="listings">{language === 'zh' ? '商品列表' : 'Listings'}</option>
+                        <option value="prices">{language === 'zh' ? '价格' : 'Prices'}</option>
+                      </select>
+                      <button 
+                        onClick={handleEcommerceExtract} 
+                        disabled={isExtracting || !ecommerceUrl || !backendConfig.enabled}
+                        className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg text-sm inline-flex items-center gap-2"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        {isExtracting ? (language === 'zh' ? '提取中...' : 'Extracting...') : (language === 'zh' ? '开始提取' : 'Extract')}
+                      </button>
+                    </div>
+                    {ecommerceResults.length > 0 && (
+                      <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
+                        {language === 'zh' ? `提取 ${ecommerceResults.length} 个商品` : `Extracted ${ecommerceResults.length} products`}
+                      </div>
+                    )}
+                  </div>
+                  )}
+
+                  {/* Seller Deep Crawl Section */}
+                  {activeCrawlTab === 'seller' && (
+                  <div className="p-3 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-b border-red-200 dark:border-red-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Store className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      <span className="text-sm font-medium text-red-700 dark:text-red-300">{language === 'zh' ? '卖家深度爬取' : 'Seller Deep Crawl'}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <input
+                          type="url"
+                          value={sellerUrl}
+                          onChange={(e) => setSellerUrl(e.target.value)}
+                          placeholder={language === 'zh' ? '输入卖家店铺URL...' : 'Enter seller store URL...'}
+                          className="flex-1 min-w-[200px] px-3 py-1.5 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSellerDeepCrawl(); } }}
+                        />
+                        <select
+                          value={sellerPlatform}
+                          onChange={(e) => setSellerPlatform(e.target.value)}
+                          className="px-2 py-1.5 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                        >
+                          <option value="auto">{language === 'zh' ? '自动' : 'Auto'}</option>
+                          <option value="amazon">Amazon</option>
+                          <option value="taobao">淘宝</option>
+                          <option value="tmall">天猫</option>
+                          <option value="jd">京东</option>
+                        </select>
+                        <input
+                          type="number"
+                          value={sellerMaxPages}
+                          onChange={(e) => setSellerMaxPages(parseInt(e.target.value) || 5)}
+                          min={1}
+                          max={50}
+                          className="w-16 px-2 py-1.5 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-slate-700 text-xs"
+                        />
+                        <span className="text-xs text-slate-500">{language === 'zh' ? '页' : 'pages'}</span>
+                      </div>
+                      <div className="flex gap-4 items-center flex-wrap">
+                        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                          <input type="checkbox" checked={crawlProducts} onChange={(e) => setCrawlProducts(e.target.checked)} className="rounded" />
+                          {language === 'zh' ? '爬取商品' : 'Products'}
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                          <input type="checkbox" checked={crawlReviews} onChange={(e) => setCrawlReviews(e.target.checked)} className="rounded" />
+                          {language === 'zh' ? '爬取评论' : 'Reviews'}
+                        </label>
+                        <button 
+                          onClick={handleSellerDeepCrawl} 
+                          disabled={isSellerCrawling || !sellerUrl || !backendConfig.enabled}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg text-sm inline-flex items-center gap-2"
+                        >
+                          <Store className="w-4 h-4" />
+                          {isSellerCrawling ? (language === 'zh' ? '爬取中...' : 'Crawling...') : (language === 'zh' ? '开始爬取' : 'Start')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  )}
+
                   <div className="flex gap-2 items-center">
                     <div className="flex-1">
                       <input
