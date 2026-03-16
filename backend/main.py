@@ -4960,14 +4960,87 @@ async def filter_markdown(request: MarkdownFilterRequest):
             # Use raw:// to pass HTML directly
             result = await filter_crawler.arun(url=f"raw://{html_content}", config=run_config)
             
-            return {
-                "success": result.success,
-                "raw_markdown": result.markdown.raw_markdown if result.markdown else None,
-                "fit_markdown": result.markdown.fit_markdown if result.markdown else None,
-                "filter_type": request.filter_type
-            }
+        return {
+            "success": result.success,
+            "url": result.url,
+            "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+            "scroll_count": request.scroll_count
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============ HTTP Only Crawl (No Browser) ============
+class HTTPCrawlRequest(BaseModel):
+    url: str
+    headers: Optional[Dict[str, str]] = None
+
+@app.post("/crawl/http-only")
+async def http_only_crawl(request: HTTPCrawlRequest):
+    """HTTP Only Crawl - 无浏览器，直接用HTTP请求爬取"""
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        
+        default_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        
+        headers = {**default_headers, **(request.headers or {})}
+        
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(request.url, headers=headers)
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            for script in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                script.decompose()
+            
+            title = soup.find('title')
+            title_text = title.get_text(strip=True) if title else ""
+            
+            main_content = soup.find('main') or soup.find('article') or soup.find('div', class_=lambda x: x and 'content' in x.lower()) or soup.body
+            
+            if main_content:
+                text = main_content.get_text(separator='\n', strip=True)
+            else:
+                text = soup.get_text(separator='\n', strip=True)
+            
+            links = []
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if href.startswith('http'):
+                    links.append(href)
+                elif href.startswith('/'):
+                    from urllib.parse import urljoin
+                    links.append(urljoin(request.url, href))
+            
+            images = [img.get('src', '') for img in soup.find_all('img') if img.get('src')]
+            images = [img for img in images if img][:20]
+            
+            return {
+                "success": True,
+                "url": request.url,
+                "title": title_text,
+                "markdown": text[:100000],
+                "markdown_length": len(text),
+                "links": links[:100],
+                "links_count": len(links),
+                "images": images,
+                "images_count": len(images),
+                "status_code": response.status_code,
+                "content_type": response.headers.get("content-type", "unknown"),
+                "strategy": "http_only (no browser)"
+            }
+            
+    except ImportError:
+        raise HTTPException(status_code=500, detail="httpx or beautifulsoup4 not installed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HTTP crawl failed: {str(e)}")
 
 # ============ Chunking API ============
 class ChunkRequest(BaseModel):

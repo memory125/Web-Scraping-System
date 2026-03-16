@@ -177,6 +177,10 @@ export default function App() {
   const [autoResults, setAutoResults] = useState<any>(null);
   const [urlAnalysis, setUrlAnalysis] = useState<any>(null);
   
+  // HTTP-only crawl state
+  const [httpResults, setHttpResults] = useState<any>(null);
+  const [isHttpCrawling, setIsHttpCrawling] = useState(false);
+  
   // Extraction state
   const [extUrl, setExtUrl] = useState('');
   const [extSchema, setExtSchema] = useState('');
@@ -1139,6 +1143,23 @@ export default function App() {
       addLog('error', `${language === 'zh' ? '智能爬取失败' : 'Smart crawl failed'}: ${err.message}`);
     } finally {
       setIsAutoCrawling(false);
+    }
+  };
+
+  // HTTP-only crawl handler (no browser)
+  const handleHttpOnlyCrawl = async () => {
+    if (!autoUrl) return;
+    setIsHttpCrawling(true);
+    setHttpResults(null);
+    try {
+      const { httpOnlyCrawl } = await import('./utils/api');
+      const result = await httpOnlyCrawl({ url: autoUrl });
+      setHttpResults(result);
+      addLog('success', `${language === 'zh' ? 'HTTP爬取完成' : 'HTTP crawl completed'}! ${language === 'zh' ? '内容长度' : 'Content length'}: ${result.markdown_length}, ${language === 'zh' ? '状态码' : 'Status'}: ${result.status_code}`);
+    } catch (err: any) {
+      addLog('error', `${language === 'zh' ? 'HTTP爬取失败' : 'HTTP crawl failed'}: ${err.message}`);
+    } finally {
+      setIsHttpCrawling(false);
     }
   };
 
@@ -3054,6 +3075,16 @@ export default function App() {
                           {isAutoCrawling ? (language === 'zh' ? '智能爬取中...' : 'Smart Crawling...') : (language === 'zh' ? '智能自动爬取' : 'Smart Auto-Crawl')}
                         </button>
                         
+                        {/* HTTP-only fallback button */}
+                        <button
+                          onClick={handleHttpOnlyCrawl}
+                          disabled={!autoUrl || isHttpCrawling}
+                          className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {isHttpCrawling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                          {isHttpCrawling ? (language === 'zh' ? 'HTTP爬取中...' : 'HTTP Crawling...') : (language === 'zh' ? 'HTTP极速爬取' : 'HTTP Fast Crawl')}
+                        </button>
+                        
                         {autoResults && (
                           <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-emerald-200 dark:border-emerald-700">
                             <div className="flex items-center gap-2 mb-2">
@@ -3073,6 +3104,29 @@ export default function App() {
                             <details className="mt-2">
                               <summary className="text-xs text-slate-500 cursor-pointer">{language === 'zh' ? '查看详情' : 'View Details'}</summary>
                               <pre className="mt-2 text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{JSON.stringify(autoResults, null, 2)}</pre>
+                            </details>
+                          </div>
+                        )}
+
+                        {httpResults && (
+                          <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-700">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                                {language === 'zh' ? 'HTTP爬取成功!' : 'HTTP Crawl Successful!'}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                Status: <strong>{httpResults.status_code}</strong>
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {language === 'zh' ? '内容长度' : 'Content length'}: {httpResults.markdown_length} | 
+                              {language === 'zh' ? '链接数' : 'Links'}: {httpResults.links_count} |
+                              {language === 'zh' ? '图片数' : 'Images'}: {httpResults.images_count}
+                            </div>
+                            <details className="mt-2">
+                              <summary className="text-xs text-slate-500 cursor-pointer">{language === 'zh' ? '查看内容' : 'View Content'}</summary>
+                              <pre className="mt-2 text-xs text-slate-600 dark:text-slate-400 overflow-auto max-h-40">{httpResults.markdown?.substring(0, 2000)}...</pre>
                             </details>
                           </div>
                         )}

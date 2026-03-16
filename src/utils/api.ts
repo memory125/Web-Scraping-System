@@ -2816,3 +2816,27 @@ export async function analyzeUrl(request: AnalyzeUrlRequest): Promise<any> {
   
   return response.json();
 }
+
+// ============ HTTP Only Crawl API ============
+export interface HTTPCrawlRequest {
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export async function httpOnlyCrawl(request: HTTPCrawlRequest): Promise<any> {
+  if (!API_CONFIG.backendUrl) {
+    throw new Error('Backend URL not configured');
+  }
+  
+  const response = await fetch(`${API_CONFIG.backendUrl}/crawl/http-only`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
