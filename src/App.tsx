@@ -172,6 +172,7 @@ export default function App() {
   const [autoUrl, setAutoUrl] = useState('');
   const [autoMaxDepth, setAutoMaxDepth] = useState(1);
   const [autoMaxPages, setAutoMaxPages] = useState(20);
+  const [autoProxy, setAutoProxy] = useState('');
   const [isAutoCrawling, setIsAutoCrawling] = useState(false);
   const [autoResults, setAutoResults] = useState<any>(null);
   const [urlAnalysis, setUrlAnalysis] = useState<any>(null);
@@ -1128,7 +1129,8 @@ export default function App() {
       const result = await smartAutoCrawl({
         url: autoUrl,
         max_depth: autoMaxDepth,
-        max_pages: autoMaxPages
+        max_pages: autoMaxPages,
+        proxy: autoProxy || undefined
       });
       
       setAutoResults(result);
@@ -2993,6 +2995,17 @@ export default function App() {
                             <label className="block text-xs text-slate-500 mb-1">{language === 'zh' ? '最大页面数' : 'Max Pages'}</label>
                             <input type="number" min="1" max="500" value={autoMaxPages} onChange={(e) => setAutoMaxPages(parseInt(e.target.value) || 20)} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-sm" />
                           </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">{language === 'zh' ? '代理 (可选)' : 'Proxy (optional)'}</label>
+                          <input 
+                            type="text" 
+                            value={autoProxy} 
+                            onChange={(e) => setAutoProxy(e.target.value)}
+                            placeholder={language === 'zh' ? 'http://proxy:port 或 socks5://...' : 'http://proxy:port or socks5://...'}
+                            className="w-full px-3 py-2 border border-emerald-300 dark:border-emerald-600 rounded-lg bg-white dark:bg-slate-700 text-sm"
+                          />
                         </div>
 
                         {/* URL Analysis Display */}

@@ -3418,11 +3418,12 @@ async def crawl_fit_markdown(request: FitMarkdownRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============ Smart Auto-Crawl API ============
+# ============ Smart Auto-Crawl with Proxy Fallback API ============
 class SmartCrawlRequest(BaseModel):
     url: str
     max_depth: int = 2
     max_pages: int = 50
+    proxy: Optional[str] = None
 
 class StrategyRecommendation(BaseModel):
     strategy: str
@@ -3432,7 +3433,7 @@ class StrategyRecommendation(BaseModel):
 
 @app.post("/crawl/auto")
 async def smart_auto_crawl(request: SmartCrawlRequest):
-    """Smart Auto-Crawl - 自动分析URL并选择最佳爬取策略"""
+    """Smart Auto-Crawl - 自动分析URL并选择最佳爬取策略，包含代理回退"""
     if not crawler:
         raise HTTPException(status_code=500, detail="Crawler not initialized")
     
@@ -3440,12 +3441,12 @@ async def smart_auto_crawl(request: SmartCrawlRequest):
         url = request.url.lower()
         
         anti_bot_domains = [
-            'bbc.com', 'nytimes.com', 'washingtonpost.com', 'theguardian.com',
+            'bbc.com', 'bbc.co.uk', 'nytimes.com', 'washingtonpost.com', 'theguardian.com',
             'amazon.com', 'ebay.com', 'walmart.com', 'target.com',
             'facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com',
             'reddit.com', 'stackoverflow.com', 'github.com',
             'netflix.com', 'spotify.com', 'hulu.com',
-            'news.google.com', 'wikipedia.org'
+            'news.google.com', 'wikipedia.org', 'cnn.com', 'reuters.com'
         ]
         
         simple_domains = [
@@ -3457,6 +3458,173 @@ async def smart_auto_crawl(request: SmartCrawlRequest):
             'amazon.com', 'ebay.com', 'walmart.com', 'target.com', 'bestbuy.com',
             'taobao.com', 'tmall.com', 'jd.com', 'aliexpress.com', 'shopify.com'
         ]
+
+        recommendation = StrategyRecommendation(
+            strategy="basic",
+            confidence=0.5,
+            reason="Default strategy",
+            features=["basic_crawl"]
+        )
+        
+        for domain in anti_bot_domains:
+            if domain in url:
+                recommendation = StrategyRecommendation(
+                    strategy="undetected",
+                    confidence=0.9,
+                    reason=f"Detected protected site ({domain})",
+                    features=["undetected_browser", "stealth", "retry", "extended_timeout"]
+                )
+                break
+        
+        if recommendation.strategy == "basic":
+            for domain in simple_domains:
+                if domain in url:
+                    recommendation = StrategyRecommendation(
+                        strategy="text_only",
+                        confidence=0.95,
+                        reason=f"Simple static site ({domain})",
+                        features=["text_only", "fast"]
+                    )
+                    break
+        
+        if recommendation.strategy == "basic":
+            for domain in ecommerce_domains:
+                if domain in url:
+                    recommendation = StrategyRecommendation(
+                        strategy="stealth",
+                        confidence=0.85,
+                        reason=f"E-commerce site ({domain})",
+                        features=["stealth", "cookies", "session"]
+                    )
+                    break
+        
+        strategy_name = recommendation.strategy
+        
+        # Try strategies in order with fallbacks
+        tried_strategies = []
+        last_error = None
+        
+        # Strategy 1: Stealth with extended timeout
+        if strategy_name in ["undetected", "stealth"]:
+            try:
+                browser_cfg = BrowserConfig(
+                    headless=True,
+                    enable_stealth=True,
+                    proxy_config={"server": request.proxy} if request.proxy else None
+                )
+                run_config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS,
+                    page_timeout=120000,
+                    wait_for=None
+                )
+                result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+                if result.success:
+                    return {
+                        "success": True,
+                        "url": request.url,
+                        "strategy": {"used": strategy_name, "fallback": False},
+                        "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+                        "links_count": len(result.links) if result.links else 0,
+                        "images_count": len(result.media.get("images", [])) if result.media else 0
+                    }
+            except Exception as e:
+                tried_strategies.append(strategy_name)
+                last_error = str(e)[:200]
+        
+        # Strategy 2: Try with proxy if provided
+        if request.proxy:
+            try:
+                browser_cfg = BrowserConfig(
+                    headless=True,
+                    enable_stealth=True,
+                    proxy_config={"server": request.proxy, "bypass": ["*.bbc.com"]}
+                )
+                run_config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS,
+                    page_timeout=90000,
+                    wait_for=None
+                )
+                result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+                if result.success:
+                    return {
+                        "success": True,
+                        "url": request.url,
+                        "strategy": {"used": "proxy_stealth", "fallback": True, "proxy": request.proxy},
+                        "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+                        "links_count": len(result.links) if result.links else 0,
+                        "images_count": len(result.media.get("images", [])) if result.media else 0
+                    }
+            except Exception as e:
+                tried_strategies.append("proxy_stealth")
+                last_error = str(e)[:200]
+        
+        # Strategy 3: HTTP-only mode (no browser, use requests)
+        try:
+            import httpx
+            from bs4 import BeautifulSoup
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(request.url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                })
+                
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+                
+                text = soup.get_text(separator='\n', strip=True)
+                
+                return {
+                    "success": True,
+                    "url": request.url,
+                    "strategy": {"used": "http_fallback", "fallback": True, "tried": tried_strategies},
+                    "markdown": text[:50000],
+                    "markdown_length": len(text),
+                    "content_type": response.headers.get("content-type", "unknown"),
+                    "status_code": response.status_code,
+                    "links_count": len(soup.find_all('a')),
+                    "images_count": len(soup.find_all('img'))
+                }
+        except ImportError:
+            pass
+        except Exception as e:
+            last_error = f"{last_error}; HTTP fallback also failed: {str(e)[:200]}"
+        
+        # Strategy 4: Text-only with no JS at all
+        try:
+            browser_cfg = BrowserConfig(
+                text_mode=True,
+                headless=True
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=30000
+            )
+            result = await crawler.arun(url=request.url, config=run_config, browser_config=browser_cfg)
+            if result.success:
+                return {
+                    "success": True,
+                    "url": request.url,
+                    "strategy": {"used": "text_only_fallback", "fallback": True},
+                    "markdown_length": len(result.markdown.raw_markdown) if result.markdown else 0,
+                    "links_count": len(result.links) if result.links else 0,
+                    "images_count": 0
+                }
+        except Exception as e:
+            last_error = f"{last_error}; Text-only fallback failed: {str(e)[:200]}"
+        
+        # All strategies failed
+        raise HTTPException(
+            status_code=500,
+            detail=f"All crawling strategies failed for {request.url}. Tried: {tried_strategies}. Last error: {last_error}. Solution: Use a proxy or try a different URL."
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
         
         news_domains = [
             'bbc.com', 'cnn.com', 'nytimes.com', 'theguardian.com', 

@@ -2773,6 +2773,7 @@ export interface SmartCrawlRequest {
   url: string;
   max_depth?: number;
   max_pages?: number;
+  proxy?: string;
 }
 
 export async function smartAutoCrawl(request: SmartCrawlRequest): Promise<any> {
