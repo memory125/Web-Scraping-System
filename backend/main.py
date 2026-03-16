@@ -710,6 +710,45 @@ async def crawl_url(request: CrawlRequest):
                     error=error_msg
                 )
             except Exception as e:
+                # Check if it's a timeout error, then try HTTP fallback
+                error_str = str(e)
+                if "Timeout" in error_str or "timeout" in error_str or "Failed on navigating" in error_str:
+                    try:
+                        import httpx
+                        from bs4 import BeautifulSoup
+                        
+                        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                            response = await client.get(request.url, headers={
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                            })
+                            
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                            for script in soup(["script", "style"]):
+                                script.decompose()
+                            
+                            text = soup.get_text(separator='\n', strip=True)
+                            links_list = []
+                            for a in soup.find_all('a', href=True):
+                                href = a.get('href', '')
+                                if href and href.startswith('http'):
+                                    links_list.append(href)
+                            images_list = [img.get('src', '') for img in soup.find_all('img') if img.get('src')]
+                            
+                            return CrawlResult(
+                                success=True,
+                                url=request.url,
+                                markdown=text[:100000],
+                                links=links_list[:100],
+                                images=images_list[:20],
+                                error=None
+                            )
+                    except Exception as http_err:
+                        return CrawlResult(
+                            success=False,
+                            url=request.url,
+                            error=f"Browser timeout. HTTP fallback also failed: {str(http_err)}"
+                        )
+                
                 return CrawlResult(
                     success=False,
                     url=request.url,
