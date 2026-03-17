@@ -2089,6 +2089,58 @@ async def adaptive_crawl(request: AdaptiveCrawlRequest):
                             or doc.get("text", "")
                         )
                         if url_text and content_text:
+                            # 清理HTML标签 - 使用正则表达式
+                            import re
+
+                            html_content = str(content_text)
+
+                            # 移除script和style标签及其内容
+                            html_content = re.sub(
+                                r"<script[^>]*>.*?</script>",
+                                "",
+                                html_content,
+                                flags=re.DOTALL | re.IGNORECASE,
+                            )
+                            html_content = re.sub(
+                                r"<style[^>]*>.*?</style>",
+                                "",
+                                html_content,
+                                flags=re.DOTALL | re.IGNORECASE,
+                            )
+
+                            # 移除HTML标签但保留链接文字
+                            def replace_link(match):
+                                text = match.group(1) or match.group(2) or ""
+                                return text.strip() if text else ""
+
+                            # 处理链接 [text](url)
+                            html_content = re.sub(
+                                r"\[([^\]]*)\]\([^)]+\)", replace_link, html_content
+                            )
+
+                            # 移除所有剩余的HTML标签
+                            html_content = re.sub(r"<[^>]+>", "", html_content)
+
+                            # 解码HTML实体
+                            html_content = html_content.replace("&nbsp;", " ")
+                            html_content = html_content.replace("&amp;", "&")
+                            html_content = html_content.replace("&lt;", "<")
+                            html_content = html_content.replace("&gt;", ">")
+                            html_content = html_content.replace("&quot;", '"')
+                            html_content = html_content.replace("&#39;", "'")
+
+                            # 移除多余空白
+                            lines = [
+                                line.strip()
+                                for line in html_content.split("\n")
+                                if line.strip()
+                            ]
+                            clean_text = "\n".join(lines)
+
+                            extracted_data.append(
+                                {"url": url_text, "content": clean_text[:10000]}
+                            )
+                        if url_text and content_text:
                             # 清理HTML标签
                             try:
                                 from bs4 import BeautifulSoup
