@@ -603,15 +603,24 @@ export default function App() {
     }
 
     const data = results.map((p: any) => ({
-      Title: p.title || '',
-      Price: p.price || '',
-      Currency: p.currency || '',
-      Rating: p.rating || '',
-      Reviews: p.reviews || '',
-      Availability: p.availability || '',
-      URL: p.url || '',
-      Image: p.image || '',
-      Description: p.description || '',
+      // 标题
+      Title: p.title || p.product_name || p.name || p.productTitle || '',
+      // 价格
+      Price: p.price || p.product_price || p.salePrice || p.currentPrice || '',
+      // 货币
+      Currency: p.currency || p.price_currency || 'USD',
+      // 评分
+      Rating: p.rating || p.product_rating || p.stars || '',
+      // 评论数
+      Reviews: p.reviews || p.review_count || p.total_reviews || '',
+      // 库存
+      Availability: p.availability || p.stock_status || p.in_stock || '',
+      // 商品链接
+      URL: p.url || p.product_url || p.link || p.href || p.detail_url || '',
+      // 图片
+      Image: p.image || p.product_image || p.image_url || p.img || '',
+      // 描述
+      Description: p.description || p.product_description || p.text || '',
     }));
 
     if (format === 'excel') {
@@ -657,14 +666,24 @@ export default function App() {
     }
 
     const data = products.map((p: any) => ({
-      Title: p.title || '',
-      Price: p.price || '',
-      Currency: p.currency || '',
-      Rating: p.rating || '',
-      Reviews: p.reviews || '',
-      Sales: p.sales || '',
-      URL: p.url || '',
-      Description: p.description || '',
+      // 标题
+      Title: p.title || p.product_name || p.name || p.productTitle || '',
+      // 价格
+      Price: p.price || p.product_price || p.salePrice || p.currentPrice || '',
+      // 货币
+      Currency: p.currency || p.price_currency || 'USD',
+      // 评分
+      Rating: p.rating || p.product_rating || p.stars || '',
+      // 评论数
+      Reviews: p.reviews || p.review_count || p.total_reviews || '',
+      // 销量
+      Sales: p.sales || p.sold || p.sales_count || p.total_sold || '',
+      // 商品链接
+      URL: p.url || p.product_url || p.link || p.href || p.detail_url || '',
+      // 图片
+      Image: p.image || p.product_image || p.image_url || p.img || '',
+      // 描述
+      Description: p.description || p.product_description || p.text || '',
     }));
 
     if (format === 'excel') {
@@ -684,13 +703,14 @@ export default function App() {
       addLog('success', `📄 Exported ${data.length} seller products to JSON`);
     } else {
       let md = '# 卖家商品结果\n\n';
-      data.forEach((item: any) => {
+      data.forEach((item: any, idx: number) => {
         md += `## ${item.Title}\n\n`;
+        if (item.Image) md += `![${item.Title}](${item.Image})\n\n`;
         if (item.Price) md += `**价格**: ${item.Price} ${item.Currency}\n`;
         if (item.Rating) md += `**评分**: ${item.Rating}\n`;
         if (item.Reviews) md += `**评论数**: ${item.Reviews}\n`;
         if (item.Sales) md += `**销量**: ${item.Sales}\n`;
-        if (item.URL) md += `**链接**: ${item.URL}\n`;
+        if (item.URL) md += `**商品链接**: ${item.URL}\n`;
         if (item.Description) md += `\n${item.Description}\n`;
         md += `\n---\n\n`;
       });
