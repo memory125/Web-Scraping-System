@@ -69,6 +69,21 @@
 - ✅ Sticky Proxy - 粘性会话代理
 - ✅ Full Page Scan - 全页面扫描
 
+### 智能爬虫策略
+- ✅ 自动 URL 分析 - 检测反爬网站并选择最佳策略
+- ✅ 多层策略选择 - text_only → stealth → stealth_magic → undetected → http
+- ✅ 登录网站识别 - Weibo/Twitter/Facebook 等自动使用 undetected 模式
+- ✅ 自动 Cookie 使用 - 爬取时自动应用已配置的 Cookie
+- ✅ 失败自动重试 - 内容为空时自动切换更强策略
+- ✅ 前后端自动连接 - 前端自动检测并连接后端
+
+### 数据导出
+- ✅ 基础爬取导出 - Markdown/Excel/CSV/JSON
+- ✅ 深度爬取导出 - Markdown/Excel/CSV/JSON
+- ✅ 自适应爬取导出 - Markdown/Excel/CSV/JSON
+- ✅ 电商爬取导出 - Markdown/Excel/CSV/JSON
+- ✅ 卖家爬取导出 - Markdown/Excel/CSV/JSON
+
 ---
 
 ## 系统架构
