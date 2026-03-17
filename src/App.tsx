@@ -2124,7 +2124,7 @@ export default function App() {
                                   {item.url || `Page ${idx + 1}`}
                                 </div>
                                 <div className="mt-1 text-slate-600 dark:text-slate-300 line-clamp-3">
-                                  {item.content || item.text || item.markdown || (language === 'zh' ? '无内容' : 'No content')}
+                                  {item.content || item.markdown || item.text || (language === 'zh' ? '无内容' : 'No content')}
                                 </div>
                               </div>
                             ))}

@@ -2076,35 +2076,66 @@ async def adaptive_crawl(request: AdaptiveCrawlRequest):
                 if isinstance(val, (int, float)):
                     consistency_score = float(val)
 
-        # Get knowledge base content (list of crawled page content)
-        if hasattr(result, "knowledge_base"):
+        # Get extracted content - this is the main content source for adaptive crawl
+        if hasattr(result, "extracted_content") and result.extracted_content:
+            ec = result.extracted_content
+            if isinstance(ec, list):
+                for doc in ec:
+                    if isinstance(doc, dict):
+                        url_text = doc.get("url", "")
+                        content_text = (
+                            doc.get("content", "")
+                            or doc.get("markdown", "")
+                            or doc.get("text", "")
+                        )
+                        if url_text and content_text:
+                            extracted_data.append(
+                                {"url": url_text, "content": str(content_text)[:8000]}
+                            )
+
+        # Get knowledge base content (fallback)
+        if not extracted_data and hasattr(result, "knowledge_base"):
             kb = result.knowledge_base
             if isinstance(kb, list):
                 for doc in kb:
                     content_text = ""
                     # Try to get full content from different attributes
-                    if hasattr(doc, "content") and doc.content:
-                        content_text = str(doc.content)
-                    elif hasattr(doc, "markdown") and doc.markdown:
-                        content_text = str(doc.markdown)
-                    elif isinstance(doc, dict):
-                        content_text = (
-                            doc.get("content", "") or doc.get("markdown", "") or ""
-                        )
+                    content_text = ""
+
+                    # 尝试多种属性获取内容
+                    for attr in [
+                        "content",
+                        "markdown",
+                        "text",
+                        "raw_markdown",
+                        "html",
+                        "text_content",
+                    ]:
+                        if hasattr(doc, attr):
+                            val = getattr(doc, attr, "")
+                            if val:
+                                content_text = str(val)
+                                break
+
+                    if not content_text and isinstance(doc, dict):
+                        for key in ["content", "markdown", "text", "html"]:
+                            if key in doc and doc[key]:
+                                content_text = str(doc[key])
+                                break
 
                     # Get URL
                     url_text = ""
                     if hasattr(doc, "url") and doc.url:
                         url_text = str(doc.url)
+                    elif hasattr(doc, "link") and doc.link:
+                        url_text = str(doc.link)
                     elif isinstance(doc, dict):
-                        url_text = doc.get("url", "")
+                        url_text = doc.get("url", "") or doc.get("link", "")
 
                     extracted_data.append(
                         {
                             "url": url_text,
-                            "content": content_text[:5000]
-                            if content_text
-                            else "",  # 增加内容长度
+                            "content": content_text[:8000] if content_text else "",
                         }
                     )
 
