@@ -899,7 +899,291 @@ async def clear_browser_state():
         return {"success": False, "error": str(e)}
 
 
-# ============ Models ============
+# ============ Intelligent E-commerce Crawl Strategy ============
+class EcommerceCrawlStrategy:
+    """智能电商爬虫策略选择器 - 根据平台自动选择最佳爬虫策略"""
+
+    # 平台配置：爬虫方法、反爬级别、推荐参数
+    PLATFORM_CONFIGS = {
+        # 极高反爬平台 - 需要 Playwright + Cookies + Proxy + CapSolver
+        "taobao": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "extreme",
+            "requires_cookies": True,
+            "requires_proxy": True,
+            "requires_capsolver": True,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 3,
+            "stealth": True,
+            "selectors": {
+                "items": ".item, .shop-item, .goods-item, .product-item",
+                "title": ".title, .item-title, h3, .product-title",
+                "price": ".price, .item-price, .productPrice",
+                "image": "img.pic-img, img[itemprop='image'], .productImg img",
+                "shop_name": ".shop-name, .shop-title, .shop-header-title",
+            },
+            "suggestion": "需要登录cookies、住宅代理、CapSolver API",
+        },
+        "tmall": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "extreme",
+            "requires_cookies": True,
+            "requires_proxy": True,
+            "requires_capsolver": True,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 3,
+            "stealth": True,
+            "selectors": {
+                "items": ".product, .product-item, .goods-list-v2 .item",
+                "title": ".productTitle, .product-title, h3",
+                "price": ".productPrice, .price, .tm-price",
+                "image": ".productImg img, .product-img img",
+                "shop_name": ".shop-name, .shopHeader-name, .shop-title",
+            },
+            "suggestion": "需要登录cookies、住宅代理、CapSolver API",
+        },
+        "1688": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 60000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "selectors": {
+                "items": ".offer-list .offer-item, .product-item",
+                "title": ".title, .offer-title",
+                "price": ".price, .price-text",
+                "image": "img.img-zoomin, .offer-img img",
+                "shop_name": ".company-name, .shop-name",
+            },
+            "suggestion": "建议使用代理，可能需要验证码",
+        },
+        # 高反爬平台 - 需要 stealth + cookies
+        "amazon": {
+            "crawl_method": "crawl4ai",
+            "anti_bot_level": "high",
+            "requires_cookies": True,
+            "requires_proxy": False,
+            "requires_capsolver": False,
+            "timeout": 120000,
+            "wait_for": "networkidle:5000",
+            "scroll_count": 2,
+            "stealth": True,
+            "magic": True,
+            "selectors": {
+                "items": "[data-component-type='s-search-result'], .s-asin",
+                "title": "h2 a span, .a-text-normal",
+                "price": ".a-price .a-offscreen, .a-price-whole",
+                "image": ".s-image, .a-dynamic-image",
+                "rating": ".a-icon-alt, .a-icon-star-small",
+            },
+            "suggestion": "建议添加Amazon cookies，使用stealth模式",
+        },
+        "ebay": {
+            "crawl_method": "crawl4ai",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": False,
+            "requires_capsolver": False,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "magic": True,
+            "selectors": {
+                "items": ".s-item, .li-item",
+                "title": ".s-item__title span, .it-it",
+                "price": ".s-item__price, .prcPrice",
+                "image": ".s-item__image-img, .img-img",
+            },
+            "suggestion": "使用stealth模式可能需要验证码",
+        },
+        "jd": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 60000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "selectors": {
+                "items": ".gl-item, .jd-item",
+                "title": ".p-name em, .p-name a",
+                "price": ".p-price strong i, .price",
+                "image": ".p-img img, .goods-img img",
+                "shop_name": ".shop-name, .shop-title",
+            },
+            "suggestion": "建议使用代理",
+        },
+        # 中等反爬平台
+        "aliexpress": {
+            "crawl_method": "crawl4ai",
+            "anti_bot_level": "medium",
+            "requires_cookies": False,
+            "requires_proxy": False,
+            "requires_capsolver": False,
+            "timeout": 60000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "selectors": {
+                "items": ".product-item, .list-item",
+                "title": ".product-title, .product-name",
+                "price": ".price-current, .product-price",
+                "image": ".product-img img, .image-thumb img",
+            },
+            "suggestion": "相对容易爬取",
+        },
+        "shopify": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "low",
+            "requires_cookies": False,
+            "requires_proxy": False,
+            "requires_capsolver": False,
+            "timeout": 30000,
+            "wait_for": "domcontentloaded",
+            "scroll_count": 1,
+            "stealth": False,
+            "selectors": {
+                "items": ".grid-view-item, .product-item, .product-card",
+                "title": ".grid-view-item__title, .product-title, h3",
+                "price": ".price-item--regular, .price, .product-price",
+                "image": ".grid-view-item__image, .product-image img",
+                "shop_name": ".site-header__logo, .shop-name",
+            },
+            "suggestion": "大多数Shopify店铺可直接爬取",
+        },
+        "walmart": {
+            "crawl_method": "crawl4ai",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "selectors": {
+                "items": ".search-result-gridview-item, .product-item",
+                "title": ".product-title, h3",
+                "price": ".price-characteristic, .price-view",
+                "image": ".hover-zoom-hero-image, .product-image img",
+            },
+            "suggestion": "建议使用代理",
+        },
+        "target": {
+            "crawl_method": "crawl4ai",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "selectors": {
+                "items": ".styles__StyledCard, .product-item",
+                "title": ".styles__Title, h3",
+                "price": ".styles__CurrentPrice, .price",
+                "image": ".styles__Image, .product-image img",
+            },
+            "suggestion": "建议使用代理",
+        },
+    }
+
+    @classmethod
+    def detect_platform(cls, url: str) -> str:
+        """自动检测电商平台"""
+        url_lower = url.lower()
+
+        if "taobao.com" in url_lower or "jiyoujia" in url_lower:
+            return "taobao"
+        elif "tmall.com" in url_lower:
+            return "tmall"
+        elif "1688.com" in url_lower:
+            return "1688"
+        elif "amazon." in url_lower:
+            return "amazon"
+        elif "ebay." in url_lower:
+            return "ebay"
+        elif "jd.com" in url_lower or "jingdong" in url_lower:
+            return "jd"
+        elif "aliexpress." in url_lower:
+            return "aliexpress"
+        elif "shopify." in url_lower or "myshopify.com" in url_lower:
+            return "shopify"
+        elif "walmart." in url_lower:
+            return "walmart"
+        elif "target." in url_lower:
+            return "target"
+        else:
+            return "generic"
+
+    @classmethod
+    def get_strategy(
+        cls, url: str, has_cookies: bool = False, has_proxy: bool = False
+    ) -> Dict[str, Any]:
+        """获取最佳爬虫策略"""
+        platform = cls.detect_platform(url)
+        config = cls.PLATFORM_CONFIGS.get(platform, {})
+
+        # 构建策略
+        strategy = {
+            "platform": platform,
+            "crawl_method": config.get("crawl_method", "playwright"),
+            "anti_bot_level": config.get("anti_bot_level", "unknown"),
+            "timeout": config.get("timeout", 60000),
+            "wait_for": config.get("wait_for", "networkidle"),
+            "scroll_count": config.get("scroll_count", 2),
+            "stealth": config.get("stealth", True),
+            "magic": config.get("magic", False),
+            "selectors": config.get("selectors", {}),
+            "suggestion": config.get("suggestion", ""),
+        }
+
+        # 检查是否需要额外配置
+        needs = []
+        if config.get("requires_cookies") and not has_cookies:
+            needs.append("cookies")
+        if config.get("requires_proxy") and not has_proxy:
+            needs.append("proxy")
+        if config.get("requires_capsolver"):
+            needs.append("capsolver")
+
+        strategy["needed"] = needs
+        strategy["can_crawl"] = len(needs) == 0 or has_cookies
+
+        return strategy
+
+    @classmethod
+    def get_recommended_config(cls, url: str) -> Dict[str, Any]:
+        """获取推荐配置（用于API文档）"""
+        platform = cls.detect_platform(url)
+        config = cls.PLATFORM_CONFIGS.get(platform, cls.PLATFORM_CONFIGS["shopify"])
+
+        return {
+            "platform": platform,
+            "recommended_method": config.get("crawl_method"),
+            "anti_bot_level": config.get("anti_bot_level"),
+            "timeout": config.get("timeout"),
+            "stealth": config.get("stealth"),
+            "magic": config.get("magic"),
+            "scroll_count": config.get("scroll_count"),
+            "suggestion": config.get("suggestion"),
+            "required_params": {
+                "cookies": config.get("requires_cookies"),
+                "proxy": config.get("requires_proxy"),
+                "capsolver": config.get("requires_capsolver"),
+            },
+        }
+
 
 # Global cookie storage
 cookies_store: Dict[str, List[Dict[str, str]]] = {}
@@ -1196,6 +1480,16 @@ class EcommerceExtractRequest(BaseModel):
     cookies: Optional[List[Dict[str, str]]] = (
         None  # [{"name": "cookie_name", "value": "cookie_value"}, ...]
     )
+    # Enhanced options for intelligent crawling
+    use_stealth: bool = True  # Use stealth mode for anti-bot (Amazon, eBay, etc.)
+    use_proxy: bool = False  # Use proxy
+    proxy_url: Optional[str] = None
+    scroll_pages: int = 1  # Number of pages to scroll through
+    # Playwright option for JavaScript-rendered pages (Taobao, Tmall, etc.)
+    use_playwright: bool = True  # Use Playwright for better JS handling
+    # CapSolver CAPTCHA integration
+    use_capsolver: bool = False  # Use CapSolver to solve CAPTCHA
+    capsolver_api_key: Optional[str] = None  # CapSolver API key
 
 
 class EcommerceResult(BaseModel):
@@ -1217,6 +1511,17 @@ class EcommerceSellerCrawlRequest(BaseModel):
     crawl_reviews: bool = False
     provider: Optional[str] = None
     api_key: Optional[str] = None
+    cookies: Optional[List[Dict[str, str]]] = (
+        None  # [{"name": "cookie_name", "value": "cookie_value"}, ...]
+    )
+    # Enhanced options
+    use_playwright: bool = True  # Use Playwright for JavaScript-rendered pages
+    use_stealth: bool = True  # Use stealth mode for anti-bot
+    use_proxy: bool = False  # Use proxy
+    proxy_url: Optional[str] = None
+    # CapSolver CAPTCHA integration
+    use_capsolver: bool = False  # Use CapSolver to solve CAPTCHA
+    capsolver_api_key: Optional[str] = None  # CapSolver API key
 
 
 class EcommerceSellerResult(BaseModel):
@@ -1284,6 +1589,35 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/crawl/ecommerce/strategy")
+async def get_ecommerce_strategy(
+    url: str, has_cookies: bool = False, has_proxy: bool = False
+):
+    """获取电商爬虫策略建议
+    - 根据URL自动检测平台
+    - 返回最佳爬虫方法和所需参数
+    - 提示是否需要cookies、代理、CapSolver
+    """
+    strategy = EcommerceCrawlStrategy.get_strategy(url, has_cookies, has_proxy)
+    return strategy
+
+
+@app.get("/crawl/ecommerce/platforms")
+async def get_supported_platforms():
+    """获取支持的电商平台列表和配置"""
+    platforms = {}
+    for name, config in EcommerceCrawlStrategy.PLATFORM_CONFIGS.items():
+        platforms[name] = {
+            "crawl_method": config.get("crawl_method"),
+            "anti_bot_level": config.get("anti_bot_level"),
+            "requires_cookies": config.get("requires_cookies"),
+            "requires_proxy": config.get("requires_proxy"),
+            "requires_capsolver": config.get("requires_capsolver"),
+            "suggestion": config.get("suggestion"),
+        }
+    return platforms
+
+
 @app.get("/port")
 async def get_port():
     """返回当前服务端口"""
@@ -1320,6 +1654,239 @@ async def delete_cookies(domain: str):
     if domain in cookies_store:
         del cookies_store[domain]
     return {"success": True}
+
+
+# ============ Platform Cookie Management ============
+PLATFORM_COOKIE_GUIDE = {
+    "taobao": {
+        "name": "淘宝",
+        "domains": ["taobao.com", ".taobao.com"],
+        "required_cookies": [
+            "_tb_token_",
+            "cookie2",
+            "t",
+            "unb",
+            "uc1",
+            "cookie1",
+            "cna",
+        ],
+        "instructions": {
+            "chrome": "1. 登录淘宝 (www.taobao.com)\n2. 按 F12 打开开发者工具\n3. 切换到 Application 标签\n4. 左侧 Cookies → https://www.taobao.com\n5. 复制关键 cookie 值",
+            "firefox": "1. 登录淘宝\n2. 按 F12 打开开发者工具\n3. 存储 → Cookies\n4. 复制 cookie 值",
+        },
+        "export_hint": "使用 EditThisCookie 或 Cookie-Editor 插件导出",
+    },
+    "tmall": {
+        "name": "天猫",
+        "domains": ["tmall.com", ".tmall.com", "tmall.com"],
+        "required_cookies": [
+            "_tb_token_",
+            "cookie2",
+            "t",
+            "unb",
+            "uc1",
+            "cookie1",
+            "cna",
+            "_m_h5_tk",
+        ],
+        "instructions": {
+            "chrome": "1. 登录天猫 (www.tmall.com)\n2. 按 F12 打开开发者工具\n3. 切换到 Application 标签\n4. 左侧 Cookies → https://www.tmall.com\n5. 复制 cookie 值",
+        },
+        "export_hint": "使用 EditThisCookie 或 Cookie-Editor 插件导出",
+    },
+    "amazon": {
+        "name": "Amazon",
+        "domains": [
+            "amazon.com",
+            ".amazon.com",
+            "amazon.co.uk",
+            "amazon.de",
+            "amazon.fr",
+        ],
+        "required_cookies": [
+            "session-id",
+            "session-token",
+            "at-acb",
+            "ubid-acb",
+            "x-amz-datetime",
+            "sp-cdn",
+        ],
+        "instructions": {
+            "chrome": "1. 登录 Amazon\n2. 按 F12 打开开发者工具\n3. Application → Cookies → amazon.com\n4. 复制 session-id 和 session-token",
+        },
+        "export_hint": "使用 Amazon 插件或 EditThisCookie",
+    },
+    "ebay": {
+        "name": "eBay",
+        "domains": ["ebay.com", ".ebay.com", "ebay.co.uk"],
+        "required_cookies": ["s", "BAT", "nkm", "npii", "ebp"],
+        "instructions": {
+            "chrome": "1. 登录 eBay\n2. 按 F12\n3. Application → Cookies → ebay.com\n4. 复制关键 cookies",
+        },
+    },
+    "jd": {
+        "name": "京东",
+        "domains": ["jd.com", ".jd.com", "jingdong.com"],
+        "required_cookies": ["pt_key", "pt_pin", "pt_token", "wskey"],
+        "instructions": {
+            "chrome": "1. 登录京东 (www.jd.com)\n2. 按 F12\n3. Application → Cookies → jd.com\n4. 复制 pt_key, pt_pin 等",
+        },
+    },
+    "1688": {
+        "name": "1688",
+        "domains": ["1688.com", ".1688.com", "alibaba.com"],
+        "required_cookies": [
+            "_tb_token_",
+            "cookie2",
+            "t",
+            "unb",
+            "uc1",
+            "cna",
+            "aliAbro",
+        ],
+        "instructions": {
+            "chrome": "1. 登录 1688 (www.1688.com)\n2. 按 F12\n3. Application → Cookies → 1688.com\n4. 复制 cookies",
+        },
+    },
+    "shopify": {
+        "name": "Shopify",
+        "domains": ["shopify.com", ".shopify.com"],
+        "required_cookies": ["_secure_session_id", "cart", "checkout", "localization"],
+        "instructions": {
+            "chrome": "1. 登录目标 Shopify 店铺\n2. 按 F12\n3. Application → Cookies\n4. 复制 _secure_session_id 等",
+        },
+    },
+}
+
+
+@app.get("/cookies/platforms")
+async def get_platform_cookies_guide():
+    """获取各平台 cookies 获取指南"""
+    guide = {}
+    for platform, info in PLATFORM_COOKIE_GUIDE.items():
+        guide[platform] = {
+            "name": info["name"],
+            "domains": info["domains"],
+            "required_cookies": info["required_cookies"],
+            "instructions": info["instructions"],
+            "export_hint": info.get("export_hint", ""),
+            "has_cookies": any(cookies_store.get(d, []) for d in info["domains"]),
+        }
+    return guide
+
+
+@app.get("/cookies/platform/{platform}")
+async def get_platform_cookies_instructions(platform: str):
+    """获取特定平台的 cookies 获取说明"""
+    platform_lower = platform.lower()
+
+    if platform_lower not in PLATFORM_COOKIE_GUIDE:
+        # 尝试模糊匹配
+        for key, info in PLATFORM_COOKIE_GUIDE.items():
+            if platform_lower in key or any(
+                platform_lower in d for d in info["domains"]
+            ):
+                platform_lower = key
+                break
+
+    if platform_lower not in PLATFORM_COOKIE_GUIDE:
+        return {
+            "error": f"平台 {platform} 不在支持列表中",
+            "supported_platforms": list(PLATFORM_COOKIE_GUIDE.keys()),
+        }
+
+    info = PLATFORM_COOKIE_GUIDE[platform_lower]
+
+    # 检查是否已有 cookies
+    stored_cookies = {}
+    for domain in info["domains"]:
+        if domain in cookies_store:
+            stored_cookies[domain] = len(cookies_store[domain])
+        elif "." + domain in cookies_store:
+            stored_cookies[domain] = len(cookies_store["." + domain])
+
+    return {
+        "platform": platform_lower,
+        "name": info["name"],
+        "required_cookies": info["required_cookies"],
+        "instructions": info["instructions"],
+        "export_hint": info.get("export_hint", ""),
+        "stored_cookies": stored_cookies,
+    }
+
+
+@app.post("/cookies/platform/{platform}")
+async def set_platform_cookies(platform: str, request: CookieRequest):
+    """为特定平台设置 cookies (自动匹配域名)"""
+    platform_lower = platform.lower()
+
+    if platform_lower not in PLATFORM_COOKIE_GUIDE:
+        return {"error": f"不支持的平台: {platform}"}
+
+    info = PLATFORM_COOKIE_GUIDE[platform_lower]
+    added_domains = []
+
+    # 为所有相关域名添加 cookies
+    for domain in info["domains"]:
+        cookies_store[domain] = request.cookies
+        added_domains.append(domain)
+
+    return {
+        "success": True,
+        "platform": platform_lower,
+        "domains": added_domains,
+        "cookies_count": len(request.cookies),
+        "message": f"已为 {info['name']} 添加 {len(request.cookies)} 个 cookies",
+    }
+
+
+@app.get("/cookies/list")
+async def list_all_cookies():
+    """列出所有已存储的 cookies"""
+    result = {}
+    for domain, cookies in cookies_store.items():
+        result[domain] = {
+            "count": len(cookies),
+            "cookies": [
+                {"name": c.get("name", ""), "has_value": bool(c.get("value", ""))}
+                for c in cookies
+            ],
+        }
+    return result
+
+
+@app.post("/cookies/validate")
+async def validate_cookies(request: CookieRequest):
+    """验证 cookies 是否有效"""
+    platform_lower = "auto"
+
+    # 检测平台
+    domain = request.domain.lower()
+    for plat, info in PLATFORM_COOKIE_GUIDE.items():
+        if any(d in domain for d in info["domains"]):
+            platform_lower = plat
+            break
+
+    if platform_lower == "auto":
+        return {"valid": None, "message": "无法识别平台"}
+
+    info = PLATFORM_COOKIE_GUIDE.get(platform_lower, {})
+    required = info.get("required_cookies", [])
+    cookie_names = {c.get("name", "").lower() for c in request.cookies}
+
+    # 检查必需 cookies
+    missing = [c for c in required if c.lower() not in cookie_names]
+
+    return {
+        "valid": len(missing) == 0,
+        "platform": platform_lower,
+        "required_cookies": required,
+        "provided_cookies": list(cookie_names),
+        "missing_cookies": missing,
+        "message": "所有必需 cookies 已提供"
+        if not missing
+        else f"缺少: {', '.join(missing)}",
+    }
 
 
 @app.get("/llm/status")
@@ -2485,9 +3052,21 @@ async def extract_with_llm(request: ExtractRequest):
         raise HTTPException(status_code=500, detail="Crawler not initialized")
 
     try:
+        # Handle Ollama specially
+        provider = request.provider
+        if "ollama" in provider.lower():
+            os.environ["OLLAMA_BASE_URL"] = os.getenv(
+                "OLLAMA_BASE_URL", "http://localhost:11434"
+            )
+            if "/" in provider:
+                model_name = provider.split("/")[-1]
+                provider = "ollama/" + model_name
+            else:
+                provider = "ollama/llama2"
+
         llm_strategy = LLMExtractionStrategy(
             llm_config=LLMConfig(
-                provider=request.provider,
+                provider=provider,
                 api_token=request.api_key or os.getenv("OPENAI_API_KEY", ""),
             ),
             schema=request.schema,
@@ -3151,9 +3730,7 @@ async def extract_with_regex(request: RegexExtractRequest):
 
 @app.post("/extract/ecommerce", response_model=EcommerceResult)
 async def extract_ecommerce(request: EcommerceExtractRequest):
-    """Extract e-commerce product listings and prices"""
-    if not crawler:
-        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    """Extract e-commerce product listings and prices using Playwright for JavaScript rendering"""
 
     # Platform detection and schema
     platform = request.platform.lower() if request.platform else "auto"
@@ -3165,7 +3742,7 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
             platform = "amazon"
         elif "ebay" in url:
             platform = "ebay"
-        elif "taobao" in url:
+        elif "taobao" in url or "jiyoujia" in url:
             platform = "taobao"
         elif "1688.com" in url:
             platform = "1688"
@@ -3179,6 +3756,247 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
             platform = "aliexpress"
         else:
             platform = "generic"
+
+    # Auto-enable Playwright for JavaScript-heavy platforms
+    js_heavy_platforms = ["taobao", "tmall", "1688", "jd", "shopify"]
+    use_playwright = request.use_playwright or (platform in js_heavy_platforms)
+
+    # Use Playwright for JavaScript-rendered pages
+    if use_playwright:
+        try:
+            from playwright.async_api import async_playwright
+            from bs4 import BeautifulSoup
+
+            async with async_playwright() as p:
+                # Setup browser with proxy if needed
+                launch_options = {
+                    "headless": True,
+                }
+                if request.use_stealth:
+                    launch_options["args"] = [
+                        "--disable-blink-features=AutomationControlled"
+                    ]
+
+                # Add proxy configuration
+                proxy = None
+                if request.use_proxy and request.proxy_url:
+                    proxy = {"server": request.proxy_url}
+
+                if proxy:
+                    launch_options["proxy"] = proxy
+
+                browser = await p.chromium.launch(**launch_options)
+
+                # Setup context with proxy if needed
+                context_options = {
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "viewport": {"width": 1920, "height": 1080},
+                }
+
+                # Add cookies if provided
+                if request.cookies:
+                    from urllib.parse import urlparse
+
+                    domain = urlparse(request.url).netloc
+                    formatted_cookies = []
+                    for cookie in request.cookies:
+                        if "url" not in cookie and "domain" not in cookie:
+                            formatted_cookies.append(
+                                {
+                                    "name": cookie.get("name", ""),
+                                    "value": cookie.get("value", ""),
+                                    "domain": "." + domain
+                                    if not domain.startswith(".")
+                                    else domain,
+                                    "path": "/",
+                                }
+                            )
+                        else:
+                            formatted_cookies.append(cookie)
+                    context_options["cookies"] = formatted_cookies
+
+                context = await browser.new_context(**context_options)
+                page = await context.new_page()
+
+                # Navigate and wait
+                await page.goto(request.url, wait_until="networkidle", timeout=60000)
+
+                # Handle CAPTCHA if detected
+                if request.use_capsolver and request.capsolver_api_key:
+                    # Check for CAPTCHA
+                    captcha_detected = await page.evaluate("""() => {
+                        const pageText = document.body.innerText.toLowerCase();
+                        return pageText.includes('验证码') || 
+                               pageText.includes('captcha') || 
+                               pageText.includes('verify') ||
+                               pageText.includes('安全验证');
+                    }""")
+
+                    if captcha_detected:
+                        logger.info(
+                            "CAPTCHA detected, attempting to solve with CapSolver..."
+                        )
+                        # CapSolver integration - solve reCAPTCHA / sliding puzzle
+                        try:
+                            import aiohttp
+
+                            # Get site key for Taobao
+                            site_key = await page.evaluate("""() => {
+                                const recaptcha = document.querySelector('.geetest_item_wrap, #nc_1_n1z, [data-ceg]');
+                                return recaptcha ? 'taobao' : '';
+                            }""")
+
+                            # Create CapSolver task
+                            async with aiohttp.ClientSession() as session:
+                                create_task = {
+                                    "clientKey": request.capsolver_api_key,
+                                    "task": {
+                                        "type": "AntiTurnstileTaskProxyLess"
+                                        if "taobao" in site_key
+                                        else "ReCaptchaV2Task",
+                                        "websiteURL": request.url,
+                                        "websiteKey": site_key
+                                        or "6Le6quYUAAAAAGEsU",  # Taobao default
+                                    },
+                                }
+
+                                async with session.post(
+                                    "https://api.capsolver.com/createTask",
+                                    json=create_task,
+                                    timeout=aiohttp.ClientTimeout(total=30),
+                                ) as resp:
+                                    task_result = await resp.json()
+
+                                if task_result.get("taskId"):
+                                    # Poll for result
+                                    for _ in range(30):
+                                        await asyncio.sleep(1)
+                                        async with session.post(
+                                            "https://api.capsolver.com/getTaskResult",
+                                            json={
+                                                "clientKey": request.capsolver_api_key,
+                                                "taskId": task_result["taskId"],
+                                            },
+                                            timeout=aiohttp.ClientTimeout(total=30),
+                                        ) as resp:
+                                            result = await resp.json()
+                                            if result.get("status") == "ready":
+                                                solution = result.get("solution", {})
+                                                # Submit solution
+                                                await page.evaluate(
+                                                    f"""
+                                                    (token) => {{
+                                                        if(document.getElementById('g-recaptcha-response')) {{
+                                                            document.getElementById('g-recaptcha-response').value = token;
+                                                        }}
+                                                    }}""",
+                                                    solution.get("token", ""),
+                                                )
+                                                logger.info(
+                                                    "CAPTCHA solved successfully"
+                                                )
+                                                break
+                        except Exception as cap_err:
+                            logger.warning(f"CapSolver error: {cap_err}")
+
+                # Scroll to load content
+                for _ in range(request.scroll_pages or 1):
+                    await page.evaluate(
+                        "window.scrollTo(0, document.body.scrollHeight)"
+                    )
+                    await asyncio.sleep(1)
+
+                # Get HTML after JS rendering
+                html = await page.content()
+                await browser.close()
+
+                # Parse with BeautifulSoup and extract data
+                soup = BeautifulSoup(html, "html.parser")
+
+                # Platform-specific selectors
+                selectors = {
+                    "taobao": {
+                        "items": ".item, .shop-item, .goods-item",
+                        "title": ".title, .item-title, h3",
+                        "price": ".price, .item-price",
+                        "image": "img.pic-img, img[itemprop='image']",
+                    },
+                    "tmall": {
+                        "items": ".product",
+                        "title": ".productTitle, .productTitle a",
+                        "price": ".productPrice, .price",
+                        "image": ".productImg img",
+                    },
+                    "1688": {
+                        "items": ".offer-list .offer-item",
+                        "title": ".title",
+                        "price": ".price",
+                        "image": "img.img-zoomin",
+                    },
+                    "jd": {
+                        "items": ".gl-item",
+                        "title": ".p-name em, .p-name a",
+                        "price": ".p-price strong i",
+                        "image": ".p-img img",
+                    },
+                    "shopify": {
+                        "items": ".grid-view-item, .product-item",
+                        "title": ".grid-view-item__title, .product-title",
+                        "price": ".price-item--regular, .price",
+                        "image": ".grid-view-item__image, .product-image img",
+                    },
+                    "amazon": {
+                        "items": "[data-component-type='s-search-result']",
+                        "title": "h2 a span, .a-text-normal",
+                        "price": ".a-price .a-offscreen, .a-price-whole",
+                        "image": ".s-image, .a-dynamic-image",
+                    },
+                    "ebay": {
+                        "items": ".s-item, .li-item",
+                        "title": ".s-item__title span, .it-it",
+                        "price": ".s-item__price, .prcPrice",
+                        "image": ".s-item__image-img, .img-img",
+                    },
+                }
+
+                platform_selectors = selectors.get(platform, selectors["generic"])
+                items = soup.select(platform_selectors.get("items", ""))
+
+                listings = []
+                for item in items[: request.max_items or 20]:
+                    title_elem = item.select_one(platform_selectors.get("title", ""))
+                    price_elem = item.select_one(platform_selectors.get("price", ""))
+                    image_elem = item.select_one(platform_selectors.get("image", ""))
+
+                    listing = {}
+                    if title_elem:
+                        listing["title"] = title_elem.get_text(strip=True)
+                    if price_elem:
+                        listing["price"] = price_elem.get_text(strip=True)
+                    if image_elem:
+                        listing["image"] = image_elem.get("src") or image_elem.get(
+                            "data-src", ""
+                        )
+
+                    if listing:
+                        listings.append(listing)
+
+                return EcommerceResult(
+                    success=True,
+                    url=request.url,
+                    platform=platform,
+                    listings=listings if listings else None,
+                    error=None,
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"Playwright extraction failed: {str(e)}, falling back to Crawl4AI"
+            )
+
+    # Fallback to original Crawl4AI extraction (requires LLM API key)
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
 
     # Define extraction schema based on platform
     schemas = {
@@ -3272,13 +4090,25 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
     api_key = request.api_key or os.getenv("OPENAI_API_KEY", "")
 
     try:
+        # Handle Ollama specially - set environment variables
+        if "ollama" in provider.lower():
+            os.environ["OLLAMA_BASE_URL"] = os.getenv(
+                "OLLAMA_BASE_URL", "http://localhost:11434"
+            )
+            # For Ollama, we need to use the model name without provider prefix
+            if "/" in provider:
+                model_name = provider.split("/")[-1]
+                provider = "ollama/" + model_name
+            else:
+                provider = "ollama/llama2"
+
         # Set API key for the provider
         if request.api_key:
             if "anthropic" in provider:
                 os.environ["ANTHROPIC_API_KEY"] = request.api_key
             elif "google" in provider or "gemini" in provider:
                 os.environ["GOOGLE_API_KEY"] = request.api_key
-            else:
+            elif "ollama" not in provider.lower():
                 os.environ["OPENAI_API_KEY"] = request.api_key
 
         llm_strategy = LLMExtractionStrategy(
@@ -3298,24 +4128,39 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
             domain = parsed_url.netloc
             cookies = cookies_store.get(domain, [])
 
+        # Build proxy config if requested
+        proxy_config = None
+        if request.use_proxy and request.proxy_url:
+            from crawl4ai.async_configs import ProxyConfig
+
+            proxy_config = ProxyConfig.from_string(request.proxy_url)
+
+        # Build browser config with stealth and proxy
+        browser_args = []
+        if request.use_stealth:
+            browser_args = ["--disable-blink-features=AutomationControlled"]
+
         # Create crawler with cookies if needed
         crawl_result = None
-        if cookies:
+        if cookies or request.use_proxy:
             browser_with_cookies = BrowserConfig(
                 headless=True,
                 verbose=False,
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                cookies=cookies,
+                cookies=cookies if cookies else None,
+                proxy_config=proxy_config,
+                extra_args=browser_args,
             )
             async with AsyncWebCrawler(config=browser_with_cookies) as temp_crawler:
                 run_config = CrawlerRunConfig(
                     cache_mode=CacheMode.BYPASS,
                     extraction_strategy=llm_strategy,
                     wait_for="networkidle:5000",
-                    simulate_user=True,
+                    simulate_user=request.use_stealth,
+                    magic=request.use_stealth,
                     override_navigator=True,
                     scroll_delay=0.5,
-                    max_scroll_steps=5,
+                    max_scroll_steps=request.scroll_pages or 1,
                 )
                 crawl_result = await temp_crawler.arun(
                     url=request.url, config=run_config
@@ -3325,10 +4170,11 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
                 cache_mode=CacheMode.BYPASS,
                 extraction_strategy=llm_strategy,
                 wait_for="networkidle:5000",
-                simulate_user=True,
+                simulate_user=request.use_stealth,
+                magic=request.use_stealth,
                 override_navigator=True,
                 scroll_delay=0.5,
-                max_scroll_steps=5,
+                max_scroll_steps=request.scroll_pages or 1,
             )
             crawl_result = await crawler.arun(url=request.url, config=run_config)
 
@@ -3362,9 +4208,7 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
 
 @app.post("/extract/ecommerce/seller", response_model=EcommerceSellerResult)
 async def ecommerce_seller_deep_crawl(request: EcommerceSellerCrawlRequest):
-    """E-commerce seller deep crawl - crawl seller profile, products, and reviews"""
-    if not crawler:
-        raise HTTPException(status_code=500, detail="Crawler not initialized")
+    """E-commerce seller deep crawl - crawl seller profile, products, and reviews using Playwright"""
 
     # Platform detection
     platform = request.platform.lower() if request.platform else "auto"
@@ -3376,7 +4220,7 @@ async def ecommerce_seller_deep_crawl(request: EcommerceSellerCrawlRequest):
             platform = "amazon"
         elif "ebay" in url:
             platform = "ebay"
-        elif "taobao" in url:
+        elif "taobao" in url or "jiyoujia" in url:
             platform = "taobao"
         elif "tmall" in url:
             platform = "tmall"
@@ -3390,6 +4234,226 @@ async def ecommerce_seller_deep_crawl(request: EcommerceSellerCrawlRequest):
             platform = "tiktok"
         else:
             platform = "generic"
+
+    # Auto-enable Playwright for JavaScript-heavy platforms
+    js_heavy_platforms = ["taobao", "tmall", "1688", "jd", "shopify"]
+    use_playwright = request.use_playwright or (platform in js_heavy_platforms)
+
+    # Use Playwright for JavaScript-rendered pages
+    if use_playwright:
+        try:
+            from playwright.async_api import async_playwright
+            from bs4 import BeautifulSoup
+
+            async with async_playwright() as p:
+                # Setup browser with proxy if needed
+                launch_options = {
+                    "headless": True,
+                }
+                if request.use_stealth:
+                    launch_options["args"] = [
+                        "--disable-blink-features=AutomationControlled"
+                    ]
+
+                # Add proxy configuration
+                proxy = None
+                if request.use_proxy and request.proxy_url:
+                    proxy = {"server": request.proxy_url}
+
+                if proxy:
+                    launch_options["proxy"] = proxy
+
+                browser = await p.chromium.launch(**launch_options)
+
+                context_options = {
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "viewport": {"width": 1920, "height": 1080},
+                }
+
+                # Add cookies if provided
+                if request.cookies:
+                    from urllib.parse import urlparse
+
+                    domain = urlparse(request.url).netloc
+                    formatted_cookies = []
+                    for cookie in request.cookies:
+                        if "url" not in cookie and "domain" not in cookie:
+                            formatted_cookies.append(
+                                {
+                                    "name": cookie.get("name", ""),
+                                    "value": cookie.get("value", ""),
+                                    "domain": "." + domain
+                                    if not domain.startswith(".")
+                                    else domain,
+                                    "path": "/",
+                                }
+                            )
+                        else:
+                            formatted_cookies.append(cookie)
+                    context_options["cookies"] = formatted_cookies
+
+                context = await browser.new_context(**context_options)
+                page = await context.new_page()
+
+                # Navigate and wait
+                await page.goto(request.url, wait_until="networkidle", timeout=60000)
+
+                # Handle CAPTCHA if detected
+                if request.use_capsolver and request.capsolver_api_key:
+                    captcha_detected = await page.evaluate("""() => {
+                        const pageText = document.body.innerText.toLowerCase();
+                        return pageText.includes('验证码') || 
+                               pageText.includes('captcha') || 
+                               pageText.includes('verify') ||
+                               pageText.includes('安全验证');
+                    }""")
+
+                    if captcha_detected:
+                        logger.info(
+                            "CAPTCHA detected, attempting to solve with CapSolver..."
+                        )
+                        try:
+                            import aiohttp
+
+                            async with aiohttp.ClientSession() as session:
+                                create_task = {
+                                    "clientKey": request.capsolver_api_key,
+                                    "task": {
+                                        "type": "AntiTurnstileTaskProxyLess",
+                                        "websiteURL": request.url,
+                                        "websiteKey": "6Le6quYUAAAAAGEsU",
+                                    },
+                                }
+                                async with session.post(
+                                    "https://api.capsolver.com/createTask",
+                                    json=create_task,
+                                    timeout=aiohttp.ClientTimeout(total=30),
+                                ) as resp:
+                                    task_result = await resp.json()
+                                if task_result.get("taskId"):
+                                    for _ in range(30):
+                                        await asyncio.sleep(1)
+                                        async with session.post(
+                                            "https://api.capsolver.com/getTaskResult",
+                                            json={
+                                                "clientKey": request.capsolver_api_key,
+                                                "taskId": task_result["taskId"],
+                                            },
+                                            timeout=aiohttp.ClientTimeout(total=30),
+                                        ) as resp:
+                                            result = await resp.json()
+                                            if result.get("status") == "ready":
+                                                logger.info(
+                                                    "CAPTCHA solved successfully"
+                                                )
+                                                break
+                        except Exception as cap_err:
+                            logger.warning(f"CapSolver error: {cap_err}")
+
+                # Scroll to load content
+                for _ in range(request.max_pages or 3):
+                    await page.evaluate(
+                        "window.scrollTo(0, document.body.scrollHeight)"
+                    )
+                    await asyncio.sleep(1)
+
+                # Get HTML after JS rendering
+                html = await page.content()
+                await browser.close()
+
+                # Parse with BeautifulSoup
+                soup = BeautifulSoup(html, "html.parser")
+
+                # Platform-specific selectors for seller pages
+                seller_selectors = {
+                    "taobao": {
+                        "shop_name": ".shop-name, .shop-title, .shop-header-title",
+                        "items": ".item, .shop-item, .goods-item",
+                        "title": ".title, .item-title, h3",
+                        "price": ".price, .item-price",
+                        "image": "img.pic-img",
+                    },
+                    "tmall": {
+                        "shop_name": ".shop-name, .shopHeader-name",
+                        "items": ".product, .product-item",
+                        "title": ".productTitle, h3",
+                        "price": ".productPrice, .price",
+                        "image": ".productImg img",
+                    },
+                    "jd": {
+                        "shop_name": ".shop-name, .shop-title",
+                        "items": ".gl-item, .jd-item",
+                        "title": ".p-name em, .p-name a",
+                        "price": ".p-price strong i",
+                        "image": ".p-img img",
+                    },
+                    "shopify": {
+                        "shop_name": ".site-header__logo, .shop-name",
+                        "items": ".grid-view-item, .product-item",
+                        "title": ".grid-view-item__title, .product-title",
+                        "price": ".price-item--regular, .price",
+                        "image": ".grid-view-item__image, .product-image img",
+                    },
+                    "amazon": {
+                        "shop_name": "#sellerName, .a-spacing-top-small",
+                        "items": "[data-component-type='s-search-result']",
+                        "title": "h2 a span",
+                        "price": ".a-price .a-offscreen",
+                        "image": ".s-image",
+                    },
+                }
+
+                platform_selectors = seller_selectors.get(platform, {})
+
+                # Extract seller info
+                seller_info = {}
+                shop_name_elem = soup.select_one(
+                    platform_selectors.get("shop_name", "")
+                )
+                if shop_name_elem:
+                    seller_info["shop_name"] = shop_name_elem.get_text(strip=True)
+
+                # Extract products
+                items = soup.select(platform_selectors.get("items", ""))
+                products = []
+
+                for item in items[: request.max_items or 50]:
+                    title_elem = item.select_one(platform_selectors.get("title", ""))
+                    price_elem = item.select_one(platform_selectors.get("price", ""))
+                    image_elem = item.select_one(platform_selectors.get("image", ""))
+
+                    product = {}
+                    if title_elem:
+                        product["title"] = title_elem.get_text(strip=True)
+                    if price_elem:
+                        product["price"] = price_elem.get_text(strip=True)
+                    if image_elem:
+                        product["image"] = image_elem.get("src") or image_elem.get(
+                            "data-src", ""
+                        )
+
+                    if product:
+                        products.append(product)
+
+                return EcommerceSellerResult(
+                    success=True,
+                    url=request.url,
+                    platform=platform,
+                    seller_info=seller_info if seller_info else None,
+                    products=products if products else None,
+                    total_products=len(products),
+                    error=None,
+                    strategy_used="playwright",
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"Playwright extraction failed: {str(e)}, falling back to Crawl4AI"
+            )
+
+    # Fallback to original implementation
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
 
     # Platform-specific seller info schemas
     seller_schemas = {
@@ -3482,6 +4546,17 @@ async def ecommerce_seller_deep_crawl(request: EcommerceSellerCrawlRequest):
     )
     api_key = request.api_key or os.getenv("OPENAI_API_KEY", "")
 
+    # Handle Ollama specially - set environment variables
+    if "ollama" in provider.lower():
+        os.environ["OLLAMA_BASE_URL"] = os.getenv(
+            "OLLAMA_BASE_URL", "http://localhost:11434"
+        )
+        if "/" in provider:
+            model_name = provider.split("/")[-1]
+            provider = "ollama/" + model_name
+        else:
+            provider = "ollama/llama2"
+
     try:
         # Set API key for the provider
         if request.api_key:
@@ -3489,7 +4564,7 @@ async def ecommerce_seller_deep_crawl(request: EcommerceSellerCrawlRequest):
                 os.environ["ANTHROPIC_API_KEY"] = request.api_key
             elif "google" in provider or "gemini" in provider:
                 os.environ["GOOGLE_API_KEY"] = request.api_key
-            else:
+            elif "ollama" not in provider.lower():
                 os.environ["OPENAI_API_KEY"] = request.api_key
 
         import json

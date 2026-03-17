@@ -90,7 +90,6 @@ export default function App() {
   const t = getTranslation(language);
   
   const [newProxy, setNewProxy] = useState('');
-  const [showExportOptions, setShowExportOptions] = useState(false);
   const [showImportOptions, setShowImportOptions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPreview, setSelectedPreview] = useState<Target | null>(null);
@@ -2061,9 +2060,6 @@ export default function App() {
                   <button onClick={() => setShowImportOptions(!showImportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
                     <FileText className="w-3.5 h-3.5" /> {t.import} {showImportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   </button>
-                  <button onClick={() => setShowExportOptions(!showExportOptions)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-medium transition-colors">
-                    <Download className="w-3.5 h-3.5" /> {t.export} {showExportOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </button>
                 </div>
               </div>
 
@@ -2077,40 +2073,6 @@ export default function App() {
                   </label>
                 </div>
               )}
-
-              {activeTab === 'queue' && showExportOptions && (
-                <div className="p-4 bg-slate-100 dark:bg-slate-750 border-b border-slate-200 dark:border-slate-700 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {/* Markdown as default - first */}
-                    <button onClick={() => handleExportMarkdown()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white border border-purple-600 rounded-md text-xs font-medium transition-colors">
-                      <FileText className="w-3.5 h-3.5" /> Markdown
-                    </button>
-                    {/* Other formats */}
-                    <button onClick={() => handleExportExcel()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 border border-green-200 dark:border-green-700 rounded-md text-xs font-medium transition-colors">
-                      Excel
-                    </button>
-                    <button onClick={() => handleExportResultsCSV()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800 border border-emerald-200 dark:border-emerald-700 rounded-md text-xs font-medium transition-colors">
-                      CSV
-                    </button>
-                    <button onClick={() => handleExportResultsJSON()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700 rounded-md text-xs font-medium transition-colors">
-                      JSON
-                        </button>
-                      </div>
-                      {sellerResults && sellerResults.products && sellerResults.products.length > 0 && (
-                        <div className="mt-2">
-                          <div className="text-xs text-red-600 dark:text-red-400 mb-2">
-                            {language === 'zh' ? `爬取 ${sellerResults.products.length} 个商品` : `Crawled ${sellerResults.products.length} products`}
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            <button onClick={() => handleExportSellerResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">MD</button>
-                            <button onClick={() => handleExportSellerResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
-                            <button onClick={() => handleExportSellerResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
-                            <button onClick={() => handleExportSellerResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
               {activeTab === 'queue' && (
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
@@ -2177,6 +2139,40 @@ export default function App() {
                         </button>
                       </div>
                     </div>
+                    {/* Basic Tab Export Buttons */}
+                    <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 self-center">{language === 'zh' ? '导出:' : 'Export:'}</span>
+                      <button onClick={() => handleExportMarkdown()} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">Markdown</button>
+                      <button onClick={() => handleExportExcel()} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                      <button onClick={() => handleExportResultsCSV()} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                      <button onClick={() => handleExportResultsJSON()} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                    </div>
+                    {/* Basic Tab Results Display */}
+                    {(() => {
+                      const completedTargets = targets.filter(t => t.status === 'completed' && t.result);
+                      if (completedTargets.length === 0) return null;
+                      return (
+                        <div className="mt-3 max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800">
+                          <div className="p-2 text-xs font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800">
+                            {language === 'zh' ? `爬取结果 (${completedTargets.length})` : `Crawl Results (${completedTargets.length})`}
+                          </div>
+                          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {completedTargets.slice(0, 10).map((target) => (
+                              <div key={target.id} className="p-2 text-xs">
+                                <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{target.result?.title || target.url}</div>
+                                <div className="text-slate-500 dark:text-slate-400 truncate">{target.url}</div>
+                                <div className="mt-1 text-slate-600 dark:text-slate-300 line-clamp-2 whitespace-pre-wrap">{target.result?.content || target.result?.cleanedContent || ''}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {completedTargets.length > 10 && (
+                            <div className="p-2 text-xs text-center text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700">
+                              {language === 'zh' ? `还有 ${completedTargets.length - 10} 条结果...` : `+ ${completedTargets.length - 10} more results...`}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </>
                   )}
 
@@ -2245,6 +2241,36 @@ export default function App() {
                           <button onClick={() => handleExportDeepCrawlResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
                           <button onClick={() => handleExportDeepCrawlResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
                         </div>
+                      </div>
+                    )}
+                    {/* Deep Tab Export Buttons */}
+                    <div className="flex gap-2 pt-2 mt-2 border-t border-purple-200 dark:border-purple-800">
+                      <span className="text-xs text-purple-500 dark:text-purple-400 self-center">{language === 'zh' ? '导出:' : 'Export:'}</span>
+                      <button onClick={() => handleExportDeepCrawlResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">Markdown</button>
+                      <button onClick={() => handleExportDeepCrawlResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                      <button onClick={() => handleExportDeepCrawlResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                      <button onClick={() => handleExportDeepCrawlResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                    </div>
+                    {/* Deep Crawl Results Display */}
+                    {deepCrawlResults.length > 0 && (
+                      <div className="mt-3 max-h-64 overflow-y-auto border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-800">
+                        <div className="p-2 text-xs font-medium text-purple-700 dark:text-purple-300 border-b border-purple-200 dark:border-purple-700 sticky top-0 bg-white dark:bg-slate-800">
+                          {language === 'zh' ? '爬取结果预览' : 'Crawl Results Preview'}
+                        </div>
+                        <div className="divide-y divide-purple-100 dark:divide-purple-800">
+                          {deepCrawlResults.slice(0, 10).map((item: any, idx: number) => (
+                            <div key={idx} className="p-2 text-xs">
+                              <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{item.title || item.url || `Page ${idx + 1}`}</div>
+                              <div className="text-slate-500 dark:text-slate-400 truncate">{item.url}</div>
+                              <div className="mt-1 text-slate-600 dark:text-slate-300 line-clamp-2 whitespace-pre-wrap">{item.content || item.markdown || item.text || ''}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {deepCrawlResults.length > 10 && (
+                          <div className="p-2 text-xs text-center text-slate-500 dark:text-slate-400 border-t border-purple-200 dark:border-purple-700">
+                            {language === 'zh' ? `还有 ${deepCrawlResults.length - 10} 条结果...` : `+ ${deepCrawlResults.length - 10} more results...`}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2378,6 +2404,14 @@ export default function App() {
                         )}
                       </div>
                     )}
+                    {/* Adaptive Tab Export Buttons */}
+                    <div className="flex gap-2 pt-2 mt-2 border-t border-cyan-200 dark:border-cyan-800">
+                      <span className="text-xs text-cyan-500 dark:text-cyan-400 self-center">{language === 'zh' ? '导出:' : 'Export:'}</span>
+                      <button onClick={() => handleExportAdaptiveResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">Markdown</button>
+                      <button onClick={() => handleExportAdaptiveResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                      <button onClick={() => handleExportAdaptiveResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                      <button onClick={() => handleExportAdaptiveResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                    </div>
                   </div>
                   )}
 
@@ -2428,6 +2462,14 @@ export default function App() {
                         {isExtracting ? (language === 'zh' ? '提取中...' : 'Extracting...') : (language === 'zh' ? '开始提取' : 'Extract')}
                       </button>
                     </div>
+                    {/* E-commerce Tab Export Buttons */}
+                    <div className="flex gap-2 pt-2 mt-2 border-t border-orange-200 dark:border-orange-800">
+                      <span className="text-xs text-orange-500 dark:text-orange-400 self-center">{language === 'zh' ? '导出:' : 'Export:'}</span>
+                      <button onClick={() => handleExportEcommerceResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">Markdown</button>
+                      <button onClick={() => handleExportEcommerceResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                      <button onClick={() => handleExportEcommerceResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                      <button onClick={() => handleExportEcommerceResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                    </div>
                     {ecommerceResults.length > 0 && (
                       <div className="mt-2">
                         <div className="text-xs text-orange-600 dark:text-orange-400 mb-2">
@@ -2439,6 +2481,33 @@ export default function App() {
                           <button onClick={() => handleExportEcommerceResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
                           <button onClick={() => handleExportEcommerceResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
                         </div>
+                      </div>
+                    )}
+                    {/* E-commerce Results Display */}
+                    {ecommerceResults.length > 0 && (
+                      <div className="mt-3 max-h-64 overflow-y-auto border border-orange-200 dark:border-orange-700 rounded-lg bg-white dark:bg-slate-800">
+                        <div className="p-2 text-xs font-medium text-orange-700 dark:text-orange-300 border-b border-orange-200 dark:border-orange-700 sticky top-0 bg-white dark:bg-slate-800">
+                          {language === 'zh' ? '商品预览' : 'Products Preview'}
+                        </div>
+                        <div className="divide-y divide-orange-100 dark:divide-orange-800">
+                          {ecommerceResults.slice(0, 10).map((item: any, idx: number) => (
+                            <div key={idx} className="p-2 text-xs flex gap-2">
+                              {item.image || item.img || item.image_url ? (
+                                <img src={item.image || item.img || item.image_url} alt="" className="w-12 h-12 object-cover rounded border border-slate-200 dark:border-slate-600 flex-shrink-0" />
+                              ) : null}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{item.title || item.product_name || item.name || 'Product'}</div>
+                                <div className="text-orange-600 dark:text-orange-400 font-medium">{item.price || item.product_price || item.salePrice || ''}</div>
+                                <div className="text-slate-500 dark:text-slate-400 truncate">{item.url || item.product_url || item.link || ''}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {ecommerceResults.length > 10 && (
+                          <div className="p-2 text-xs text-center text-slate-500 dark:text-slate-400 border-t border-orange-200 dark:border-orange-700">
+                            {language === 'zh' ? `还有 ${ecommerceResults.length - 10} 个商品...` : `+ ${ecommerceResults.length - 10} more products...`}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2501,6 +2570,54 @@ export default function App() {
                         </button>
                       </div>
                     </div>
+                    {/* Seller Tab Export Buttons */}
+                    <div className="flex gap-2 pt-2 mt-2 border-t border-red-200 dark:border-red-800">
+                      <span className="text-xs text-red-500 dark:text-red-400 self-center">{language === 'zh' ? '导出:' : 'Export:'}</span>
+                      <button onClick={() => handleExportSellerResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">Markdown</button>
+                      <button onClick={() => handleExportSellerResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                      <button onClick={() => handleExportSellerResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                      <button onClick={() => handleExportSellerResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                    </div>
+                    {/* Seller Results Display */}
+                    {sellerResults && sellerResults.seller_info?.error && (
+                      <div className="mt-3 p-3 border border-red-300 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-900/20">
+                        <div className="text-xs text-red-600 dark:text-red-400 font-medium">
+                          {language === 'zh' ? '⚠️ 爬取失败' : '⚠️ Crawl Failed'}
+                        </div>
+                        <div className="text-xs text-red-500 dark:text-red-300 mt-1">
+                          {sellerResults.seller_info.error}
+                        </div>
+                        <div className="text-xs text-red-400 dark:text-red-400 mt-2">
+                          💡 {language === 'zh' ? '提示: 请尝试使用 Amazon Cookie 或使用店铺页面URL (如 /stores/...)' : 'Tip: Try using Amazon Cookie or store page URL (like /stores/...)'}
+                        </div>
+                      </div>
+                    )}
+                    {sellerResults && sellerResults.products && sellerResults.products.length > 0 && (
+                      <div className="mt-3 max-h-64 overflow-y-auto border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-slate-800">
+                        <div className="p-2 text-xs font-medium text-red-700 dark:text-red-300 border-b border-red-200 dark:border-red-700 sticky top-0 bg-white dark:bg-slate-800">
+                          {language === 'zh' ? `卖家店铺: ${sellerResults.seller_info?.seller_name || sellerResults.seller_info?.shop_name || sellerResults.platform || 'Unknown'}` : `Seller: ${sellerResults.seller_info?.seller_name || sellerResults.seller_info?.shop_name || sellerResults.platform || 'Unknown'}`}
+                        </div>
+                        <div className="divide-y divide-red-100 dark:divide-red-800">
+                          {sellerResults.products.slice(0, 10).map((item: any, idx: number) => (
+                            <div key={idx} className="p-2 text-xs flex gap-2">
+                              {item.image || item.image_url || item.img ? (
+                                <img src={item.image || item.image_url || item.img} alt="" className="w-12 h-12 object-cover rounded border border-slate-200 dark:border-slate-600 flex-shrink-0" />
+                              ) : null}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{item.title || item.product_name || item.name || 'Product'}</div>
+                                <div className="text-red-600 dark:text-red-400 font-medium">{item.price || item.product_price || ''}</div>
+                                <div className="text-slate-500 dark:text-slate-400 truncate">{item.url || item.product_url || item.link || ''}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {sellerResults.products.length > 10 && (
+                          <div className="p-2 text-xs text-center text-slate-500 dark:text-slate-400 border-t border-red-200 dark:border-red-700">
+                            {language === 'zh' ? `还有 ${sellerResults.products.length - 10} 个商品...` : `+ ${sellerResults.products.length - 10} more products...`}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   )}
 
