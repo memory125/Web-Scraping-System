@@ -2089,8 +2089,32 @@ async def adaptive_crawl(request: AdaptiveCrawlRequest):
                             or doc.get("text", "")
                         )
                         if url_text and content_text:
+                            # 清理HTML标签
+                            try:
+                                from bs4 import BeautifulSoup
+
+                                soup = BeautifulSoup(str(content_text), "html.parser")
+                                # 移除脚本和样式
+                                for script in soup(["script", "style"]):
+                                    script.decompose()
+                                # 获取文本，保留换行
+                                clean_text = soup.get_text(separator="\n", strip=True)
+                                # 移除空行
+                                clean_text = "\n".join(
+                                    line
+                                    for line in clean_text.split("\n")
+                                    if line.strip()
+                                )
+                                content_text = (
+                                    clean_text[:10000]
+                                    if clean_text
+                                    else str(content_text)[:8000]
+                                )
+                            except:
+                                content_text = str(content_text)[:8000]
+
                             extracted_data.append(
-                                {"url": url_text, "content": str(content_text)[:8000]}
+                                {"url": url_text, "content": content_text}
                             )
 
         # Get knowledge base content (fallback)
@@ -2123,6 +2147,24 @@ async def adaptive_crawl(request: AdaptiveCrawlRequest):
                                 content_text = str(doc[key])
                                 break
 
+                    # 清理HTML标签
+                    if content_text:
+                        try:
+                            soup = BeautifulSoup(str(content_text), "html.parser")
+                            for script in soup(["script", "style"]):
+                                script.decompose()
+                            clean_text = soup.get_text(separator="\n", strip=True)
+                            clean_text = "\n".join(
+                                line for line in clean_text.split("\n") if line.strip()
+                            )
+                            content_text = (
+                                clean_text[:10000]
+                                if clean_text
+                                else content_text[:8000]
+                            )
+                        except:
+                            pass
+
                     # Get URL
                     url_text = ""
                     if hasattr(doc, "url") and doc.url:
@@ -2135,7 +2177,7 @@ async def adaptive_crawl(request: AdaptiveCrawlRequest):
                     extracted_data.append(
                         {
                             "url": url_text,
-                            "content": content_text[:8000] if content_text else "",
+                            "content": content_text if content_text else "",
                         }
                     )
 
