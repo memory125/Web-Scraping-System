@@ -763,6 +763,37 @@ async def lifespan(app: FastAPI):
     )
     crawler = AsyncWebCrawler(config=browser_config)
 
+    # Initialize proxy pool with default settings
+    print("\nInitializing proxy pool...")
+    # Try to load proxies from environment variable (comma-separated)
+    default_proxies = os.getenv("DEFAULT_PROXIES", "")
+    if default_proxies:
+        proxy_list = [p.strip() for p in default_proxies.split(",") if p.strip()]
+        for proxy_url in proxy_list:
+            try:
+                proxy_pool.add_proxy(url=proxy_url)
+                print(f"  Added proxy: {proxy_url}")
+            except Exception as e:
+                print(f"  Failed to add proxy {proxy_url}: {e}")
+        print(f"  Loaded {len(proxy_list)} proxies from environment")
+    else:
+        print("  No default proxies configured (set DEFAULT_PROXIES env var)")
+
+    # Try to load cookies from storage
+    print("Loading stored cookies...")
+    try:
+        import json
+
+        cookies_file = "stored_cookies.json"
+        if os.path.exists(cookies_file):
+            with open(cookies_file, "r") as f:
+                stored = json.load(f)
+                for domain, cookies in stored.items():
+                    cookies_store[domain] = cookies
+            print(f"  Loaded cookies for {len(stored)} domains")
+    except Exception as e:
+        print(f"  No stored cookies found")
+
     # Test LLM connection on startup (non-blocking with timeout)
     print(
         f"\nTesting LLM connection ({LLM_CONFIG['provider']}/{LLM_CONFIG['model']})..."
@@ -778,6 +809,16 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     if crawler:
         await crawler.close()
+    # Save cookies before shutdown
+    try:
+        import json
+
+        if cookies_store:
+            with open("stored_cookies.json", "w") as f:
+                json.dump(dict(cookies_store), f)
+            print("Cookies saved to disk")
+    except Exception as e:
+        print(f"Failed to save cookies: {e}")
 
 
 # Storage state for cookies/sessions
@@ -916,6 +957,12 @@ class EcommerceCrawlStrategy:
             "wait_for": "networkidle",
             "scroll_count": 3,
             "stealth": True,
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
+            "headers": {
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            },
             "selectors": {
                 "items": ".item, .shop-item, .goods-item, .product-item",
                 "title": ".title, .item-title, h3, .product-title",
@@ -923,7 +970,7 @@ class EcommerceCrawlStrategy:
                 "image": "img.pic-img, img[itemprop='image'], .productImg img",
                 "shop_name": ".shop-name, .shop-title, .shop-header-title",
             },
-            "suggestion": "需要登录cookies、住宅代理、CapSolver API",
+            "suggestion": "需要登录cookies、住宅代理、CapSolver API，设置中国时区",
         },
         "tmall": {
             "crawl_method": "playwright",
@@ -935,6 +982,12 @@ class EcommerceCrawlStrategy:
             "wait_for": "networkidle",
             "scroll_count": 3,
             "stealth": True,
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
+            "headers": {
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            },
             "selectors": {
                 "items": ".product, .product-item, .goods-list-v2 .item",
                 "title": ".productTitle, .product-title, h3",
@@ -942,7 +995,7 @@ class EcommerceCrawlStrategy:
                 "image": ".productImg img, .product-img img",
                 "shop_name": ".shop-name, .shopHeader-name, .shop-title",
             },
-            "suggestion": "需要登录cookies、住宅代理、CapSolver API",
+            "suggestion": "需要登录cookies、住宅代理、CapSolver API，设置中国时区",
         },
         "1688": {
             "crawl_method": "playwright",
@@ -975,6 +1028,13 @@ class EcommerceCrawlStrategy:
             "scroll_count": 2,
             "stealth": True,
             "magic": True,
+            "locale": "en-US",
+            "timezone_id": "America/New_York",
+            "geolocation": {"latitude": 40.7128, "longitude": -74.0060},
+            "headers": {
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            },
             "selectors": {
                 "items": "[data-component-type='s-search-result'], .s-asin",
                 "title": "h2 a span, .a-text-normal",
@@ -982,7 +1042,7 @@ class EcommerceCrawlStrategy:
                 "image": ".s-image, .a-dynamic-image",
                 "rating": ".a-icon-alt, .a-icon-star-small",
             },
-            "suggestion": "建议添加Amazon cookies，使用stealth模式",
+            "suggestion": "建议添加Amazon cookies，使用stealth模式，设置US locale",
         },
         "ebay": {
             "crawl_method": "crawl4ai",
@@ -995,13 +1055,15 @@ class EcommerceCrawlStrategy:
             "scroll_count": 2,
             "stealth": True,
             "magic": True,
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
             "selectors": {
                 "items": ".s-item, .li-item",
                 "title": ".s-item__title span, .it-it",
                 "price": ".s-item__price, .prcPrice",
                 "image": ".s-item__image-img, .img-img",
             },
-            "suggestion": "使用stealth模式可能需要验证码",
+            "suggestion": "使用stealth模式，设置US locale",
         },
         "jd": {
             "crawl_method": "playwright",
@@ -1013,6 +1075,11 @@ class EcommerceCrawlStrategy:
             "wait_for": "networkidle",
             "scroll_count": 2,
             "stealth": True,
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
+            "headers": {
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            },
             "selectors": {
                 "items": ".gl-item, .jd-item",
                 "title": ".p-name em, .p-name a",
@@ -1020,7 +1087,7 @@ class EcommerceCrawlStrategy:
                 "image": ".p-img img, .goods-img img",
                 "shop_name": ".shop-name, .shop-title",
             },
-            "suggestion": "建议使用代理",
+            "suggestion": "建议使用代理，设置中国时区",
         },
         # 中等反爬平台
         "aliexpress": {
@@ -1033,13 +1100,44 @@ class EcommerceCrawlStrategy:
             "wait_for": "networkidle",
             "scroll_count": 2,
             "stealth": True,
-            "selectors": {
-                "items": ".product-item, .list-item",
-                "title": ".product-title, .product-name",
-                "price": ".price-current, .product-price",
-                "image": ".product-img img, .image-thumb img",
+            "magic": True,
+            "locale": "en-US",
+            "timezone_id": "America/Los_Angeles",
+            "headers": {
+                "Accept-Language": "en-US,en;q=0.9",
             },
-            "suggestion": "相对容易爬取",
+            "selectors": {
+                "items": ".product-item, .list-item, .offer-item",
+                "title": ".product-title, .product-name, .title-text",
+                "price": ".price-current, .product-price, .price-val",
+                "image": ".product-img img, .image-thumb img, .offer-img img",
+            },
+            "suggestion": "相对容易爬取，建议使用stealth模式",
+        },
+        "alibaba": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 3,
+            "stealth": True,
+            "magic": True,
+            "locale": "en-US",
+            "timezone_id": "America/Los_Angeles",
+            "headers": {
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+            "selectors": {
+                "items": ".offer-item, .product-item, .m-product-item",
+                "title": ".title, .offer-title, .product-title",
+                "price": ".price, .price-text, .ma-spec-price",
+                "image": ".offer-img img, .product-img img, .img-thumb img",
+                "company": ".company-name, .supplier-name",
+            },
+            "suggestion": "阿里国际站，建议使用代理+stealth模式",
         },
         "shopify": {
             "crawl_method": "playwright",
@@ -1096,6 +1194,72 @@ class EcommerceCrawlStrategy:
             },
             "suggestion": "建议使用代理",
         },
+        "rakuten": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 60000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "locale": "ja-JP",
+            "timezone_id": "Asia/Tokyo",
+            "headers": {
+                "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8",
+            },
+            "selectors": {
+                "items": ".searchresultitem, .item",
+                "title": ".title, .item_name",
+                "price": ".price, .priceTxt",
+                "image": ".image img, .item_image img",
+            },
+            "suggestion": "日本乐天，建议使用日本代理",
+        },
+        "coupang": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 60000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "locale": "ko-KR",
+            "timezone_id": "Asia/Seoul",
+            "headers": {
+                "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+            },
+            "selectors": {
+                "items": ".search-product, .product-item",
+                "title": ".product-name, .title",
+                "price": ".price, .product-price",
+                "image": ".product-image img, .thumbnail img",
+            },
+            "suggestion": "韩国Coupang，建议使用韩国代理",
+        },
+        "mercadolibre": {
+            "crawl_method": "crawl4ai",
+            "anti_bot_level": "high",
+            "requires_cookies": False,
+            "requires_proxy": True,
+            "requires_capsolver": False,
+            "timeout": 60000,
+            "wait_for": "networkidle",
+            "scroll_count": 2,
+            "stealth": True,
+            "locale": "es-ES",
+            "timezone_id": "America/Argentina/Buenos_Aires",
+            "selectors": {
+                "items": ".ui-search-result, .item",
+                "title": ".ui-search-item-title, .item-title",
+                "price": ".ui-price, .price",
+                "image": ".ui-search-image, .item-image img",
+            },
+            "suggestion": "拉美MercadoLibre，建议使用当地代理",
+        },
     }
 
     @classmethod
@@ -1117,12 +1281,20 @@ class EcommerceCrawlStrategy:
             return "jd"
         elif "aliexpress." in url_lower:
             return "aliexpress"
+        elif "alibaba." in url_lower:
+            return "alibaba"
         elif "shopify." in url_lower or "myshopify.com" in url_lower:
             return "shopify"
         elif "walmart." in url_lower:
             return "walmart"
         elif "target." in url_lower:
             return "target"
+        elif "rakuten." in url_lower:
+            return "rakuten"
+        elif "coupang." in url_lower:
+            return "coupang"
+        elif "mercadolibre." in url_lower or "mercadoli" in url_lower:
+            return "mercadolibre"
         else:
             return "generic"
 
@@ -1134,6 +1306,10 @@ class EcommerceCrawlStrategy:
         platform = cls.detect_platform(url)
         config = cls.PLATFORM_CONFIGS.get(platform, {})
 
+        # 获取随机 User-Agent 和指纹
+        random_ua = user_agent_pool.get_random()
+        random_fingerprint = BrowserFingerprint.get_random_fingerprint()
+
         # 构建策略
         strategy = {
             "platform": platform,
@@ -1144,6 +1320,12 @@ class EcommerceCrawlStrategy:
             "scroll_count": config.get("scroll_count", 2),
             "stealth": config.get("stealth", True),
             "magic": config.get("magic", False),
+            "locale": config.get("locale"),
+            "timezone_id": config.get("timezone_id"),
+            "geolocation": config.get("geolocation"),
+            "headers": config.get("headers"),
+            "user_agent": random_ua,
+            "fingerprint": random_fingerprint,
             "selectors": config.get("selectors", {}),
             "suggestion": config.get("suggestion", ""),
         }
@@ -1543,6 +1725,462 @@ class CaptchaSolver:
 
 # Global cookie storage
 cookies_store: Dict[str, List[Dict[str, str]]] = {}
+
+
+# ============ Proxy Pool Management ============
+class ProxyPool:
+    """代理池管理 - 自动轮换代理"""
+
+    def __init__(self):
+        self.proxies: List[Dict[str, Any]] = []
+        self.current_index = 0
+        self.failed_proxies: Dict[str, int] = {}  # Track failed proxies
+
+    def add_proxy(
+        self,
+        url: str,
+        username: str = None,
+        password: str = None,
+        name: str = None,
+        enabled: bool = True,
+    ) -> Dict[str, Any]:
+        """添加代理到池中"""
+        proxy = {
+            "url": url,
+            "username": username,
+            "password": password,
+            "name": name or url,
+            "enabled": enabled,
+            "success_count": 0,
+            "fail_count": 0,
+            "total_requests": 0,
+            "avg_response_time": 0,
+            "added_at": asyncio.get_event_loop().time(),
+        }
+        self.proxies.append(proxy)
+        return {"success": True, "proxy": proxy}
+
+    def get_next_proxy(self) -> Optional[Dict[str, Any]]:
+        """获取下一个可用的代理 (轮询)"""
+        enabled_proxies = [p for p in self.proxies if p.get("enabled", True)]
+        if not enabled_proxies:
+            return None
+
+        # Round-robin selection
+        for _ in range(len(enabled_proxies)):
+            proxy = enabled_proxies[self.current_index % len(enabled_proxies)]
+            self.current_index += 1
+
+            # Skip proxies that have failed too many times
+            if proxy["fail_count"] < 5:
+                return proxy
+
+        return enabled_proxies[0]  # Return first enabled proxy as fallback
+
+    def report_success(self, proxy_url: str, response_time: float = 0):
+        """报告代理使用成功"""
+        for proxy in self.proxies:
+            if proxy["url"] == proxy_url:
+                proxy["success_count"] += 1
+                proxy["total_requests"] += 1
+                # Update average response time
+                if response_time > 0:
+                    old_avg = proxy["avg_response_time"]
+                    total = proxy["success_count"]
+                    proxy["avg_response_time"] = (
+                        old_avg * (total - 1) + response_time
+                    ) / total
+                # Reset fail count on success
+                proxy["fail_count"] = 0
+                break
+
+    def report_failure(self, proxy_url: str):
+        """报告代理使用失败"""
+        for proxy in self.proxies:
+            if proxy["url"] == proxy_url:
+                proxy["fail_count"] += 1
+                proxy["total_requests"] += 1
+                # Disable proxy if too many failures
+                if proxy["fail_count"] >= 10:
+                    proxy["enabled"] = False
+                    logger.warning(
+                        f"Proxy disabled due to too many failures: {proxy_url}"
+                    )
+                break
+
+    def remove_proxy(self, proxy_url: str) -> bool:
+        """移除代理"""
+        for i, proxy in enumerate(self.proxies):
+            if proxy["url"] == proxy_url:
+                self.proxies.pop(i)
+                return True
+        return False
+
+    def get_stats(self) -> Dict[str, Any]:
+        """获取代理池统计"""
+        total = len(self.proxies)
+        enabled = len([p for p in self.proxies if p.get("enabled", True)])
+        total_requests = sum(p.get("total_requests", 0) for p in self.proxies)
+        total_success = sum(p.get("success_count", 0) for p in self.proxies)
+
+        return {
+            "total_proxies": total,
+            "enabled_proxies": enabled,
+            "disabled_proxies": total - enabled,
+            "total_requests": total_requests,
+            "total_success": total_success,
+            "success_rate": f"{(total_success / total_requests * 100):.1f}%"
+            if total_requests > 0
+            else "0%",
+            "proxies": [
+                {
+                    "url": p["url"],
+                    "name": p.get("name", ""),
+                    "enabled": p.get("enabled", True),
+                    "success_count": p.get("success_count", 0),
+                    "fail_count": p.get("fail_count", 0),
+                    "total_requests": p.get("total_requests", 0),
+                    "avg_response_time": f"{p.get('avg_response_time', 0):.2f}s",
+                }
+                for p in self.proxies
+            ],
+        }
+
+    def enable_proxy(self, proxy_url: str) -> bool:
+        """启用代理"""
+        for proxy in self.proxies:
+            if proxy["url"] == proxy_url:
+                proxy["enabled"] = True
+                proxy["fail_count"] = 0
+                return True
+        return False
+
+    def disable_proxy(self, proxy_url: str) -> bool:
+        """禁用代理"""
+        for proxy in self.proxies:
+            if proxy["url"] == proxy_url:
+                proxy["enabled"] = False
+                return True
+        return False
+
+    def test_proxy(
+        self,
+        proxy_url: str,
+        test_url: str = "https://www.google.com",
+        timeout: int = 10,
+    ) -> Dict[str, Any]:
+        """测试代理连通性"""
+        import aiohttp
+        import time
+
+        try:
+            start_time = time.time()
+            # Use synchronous request for simplicity
+            import requests
+
+            resp = requests.get(
+                test_url,
+                proxies={"http": proxy_url, "https": proxy_url},
+                timeout=timeout,
+            )
+            response_time = time.time() - start_time
+            return {
+                "success": resp.status_code == 200,
+                "status_code": resp.status_code,
+                "response_time": f"{response_time:.2f}s",
+                "proxy": proxy_url,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "proxy": proxy_url,
+            }
+
+
+# Global proxy pool instance
+proxy_pool = ProxyPool()
+
+
+# ============ User-Agent Rotation Pool ============
+class UserAgentPool:
+    """User-Agent 轮换池 - 模拟不同浏览器和设备"""
+
+    # 常用 User-Agent 列表
+    USER_AGENTS = [
+        # Chrome on Windows
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        # Chrome on Mac
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        # Safari on Mac
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        # Chrome on Linux
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        # Firefox on Windows
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+        # Firefox on Mac
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+        # Edge on Windows
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
+        # Chrome on Android
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36",
+        # Chrome on iOS
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/119.0.0.0 Mobile/15E148 Safari/604.1",
+        # Safari on iOS
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (iPad; CPU OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+    ]
+
+    def __init__(self):
+        self.current_index = 0
+        self.custom_agents = []
+
+    def get_random(self) -> str:
+        """随机获取一个 User-Agent"""
+        import random
+
+        all_agents = self.USER_AGENTS + self.custom_agents
+        return random.choice(all_agents)
+
+    def get_next(self) -> str:
+        """轮换获取 User-Agent"""
+        all_agents = self.USER_AGENTS + self.custom_agents
+        ua = all_agents[self.current_index % len(all_agents)]
+        self.current_index += 1
+        return ua
+
+    def add_custom(self, user_agent: str):
+        """添加自定义 User-Agent"""
+        self.custom_agents.append(user_agent)
+
+    def get_all(self) -> List[str]:
+        """获取所有 User-Agent"""
+        return self.USER_AGENTS + self.custom_agents
+
+
+# Global User-Agent pool
+user_agent_pool = UserAgentPool()
+
+
+# ============ Browser Fingerprint Manager ============
+class BrowserFingerprint:
+    """浏览器指纹管理 - 随机化浏览器特征"""
+
+    # 屏幕分辨率
+    SCREEN_RESOLUTIONS = [
+        {"width": 1920, "height": 1080},
+        {"width": 1920, "height": 1200},
+        {"width": 2560, "height": 1440},
+        {"width": 1366, "height": 768},
+        {"width": 1440, "height": 900},
+        {"width": 1536, "height": 864},
+        {"width": 1280, "height": 720},
+    ]
+
+    # 时区
+    TIMEZONES = [
+        "America/New_York",
+        "America/Los_Angeles",
+        "America/Chicago",
+        "Europe/London",
+        "Europe/Paris",
+        "Europe/Berlin",
+        "Asia/Tokyo",
+        "Asia/Shanghai",
+        "Asia/Hong_Kong",
+        "Asia/Singapore",
+        "Australia/Sydney",
+    ]
+
+    # 语言
+    LANGUAGES = [
+        "en-US,en;q=0.9",
+        "en-US,en;q=0.9,zh-CN;q=0.8",
+        "zh-CN,zh;q=0.9,en;q=0.8",
+        "en-GB,en;q=0.9",
+        "ja-JP,ja;q=0.9,en;q=0.8",
+        "ko-KR,ko;q=0.9,en;q=0.8",
+    ]
+
+    @staticmethod
+    def get_random_fingerprint() -> Dict[str, Any]:
+        """获取随机浏览器指纹"""
+        import random
+
+        return {
+            "viewport": random.choice(BrowserFingerprint.SCREEN_RESOLUTIONS),
+            "timezone": random.choice(BrowserFingerprint.TIMEZONES),
+            "language": random.choice(BrowserFingerprint.LANGUAGES),
+            "platform": random.choice(["Win32", "MacIntel", "Linux x86_64"]),
+            "hardware_concurrency": random.choice([4, 8, 16, 32]),
+            "device_memory": random.choice([4, 8, 16]),
+        }
+
+
+# User-Agent API endpoints
+@app.get("/user-agents")
+async def get_user_agents():
+    """获取所有可用 User-Agent"""
+    return {
+        "count": len(user_agent_pool.get_all()),
+        "user_agents": user_agent_pool.get_all(),
+    }
+
+
+@app.post("/user-agents/add")
+async def add_custom_user_agent(user_agent: str):
+    """添加自定义 User-Agent"""
+    user_agent_pool.add_custom(user_agent)
+    return {"success": True, "message": "User-Agent 已添加"}
+
+
+@app.get("/user-agents/random")
+async def get_random_user_agent():
+    """获取随机 User-Agent"""
+    return {"user_agent": user_agent_pool.get_random()}
+
+
+@app.get("/fingerprint/random")
+async def get_random_fingerprint():
+    """获取随机浏览器指纹"""
+    return BrowserFingerprint.get_random_fingerprint()
+
+
+# Proxy pool API models
+class AddProxyRequest(BaseModel):
+    url: str  # http://proxy:port or socks5://proxy:port
+    username: Optional[str] = None
+    password: Optional[str] = None
+    name: Optional[str] = None
+
+
+class TestProxyRequest(BaseModel):
+    url: str
+    test_url: str = "https://www.google.com"
+    timeout: int = 10
+
+
+# Proxy pool API endpoints
+@app.post("/proxy/pool/add")
+async def add_proxy_to_pool(request: AddProxyRequest):
+    """添加代理到代理池"""
+    result = proxy_pool.add_proxy(
+        url=request.url,
+        username=request.username,
+        password=request.password,
+        name=request.name,
+    )
+    return result
+
+
+@app.get("/proxy/pool/list")
+async def list_proxy_pool():
+    """获取代理池列表和统计"""
+    return proxy_pool.get_stats()
+
+
+@app.delete("/proxy/pool/{proxy_url}")
+async def remove_proxy_from_pool(proxy_url: str):
+    """从代理池移除代理"""
+    proxy_url = urllib.parse.unquote(proxy_url)
+    success = proxy_pool.remove_proxy(proxy_url)
+    return {"success": success, "message": "代理已移除" if success else "代理不存在"}
+
+
+@app.post("/proxy/pool/{proxy_url}/enable")
+async def enable_proxy(proxy_url: str):
+    """启用代理"""
+    proxy_url = urllib.parse.unquote(proxy_url)
+    success = proxy_pool.enable_proxy(proxy_url)
+    return {"success": success, "message": "代理已启用" if success else "代理不存在"}
+
+
+@app.post("/proxy/pool/{proxy_url}/disable")
+async def disable_proxy(proxy_url: str):
+    """禁用代理"""
+    proxy_url = urllib.parse.unquote(proxy_url)
+    success = proxy_pool.disable_proxy(proxy_url)
+    return {"success": success, "message": "代理已禁用" if success else "代理不存在"}
+
+
+@app.post("/proxy/pool/test")
+async def test_proxy(request: TestProxyRequest):
+    """测试代理连通性"""
+    return await proxy_pool.test_proxy(
+        proxy_url=request.url,
+        test_url=request.test_url,
+        timeout=request.timeout,
+    )
+
+
+@app.get("/proxy/pool/next")
+async def get_next_proxy():
+    """获取下一个可用代理"""
+    proxy = proxy_pool.get_next_proxy()
+    if proxy:
+        return {"success": True, "proxy": proxy}
+    return {"success": False, "message": "代理池为空"}
+
+
+@app.post("/proxy/pool/{proxy_url}/success")
+async def report_proxy_success(proxy_url: str, response_time: float = 0):
+    """报告代理使用成功"""
+    proxy_url = urllib.parse.unquote(proxy_url)
+    proxy_pool.report_success(proxy_url, response_time)
+    return {"success": True}
+
+
+@app.post("/proxy/pool/{proxy_url}/failure")
+async def report_proxy_failure(proxy_url: str):
+    """报告代理使用失败"""
+    proxy_url = urllib.parse.unquote(proxy_url)
+    proxy_pool.report_failure(proxy_url)
+    return {"success": True}
+
+
+@app.post("/proxy/pool/import")
+async def import_proxies(proxy_list: List[AddProxyRequest]):
+    """批量导入代理"""
+    added = 0
+    for proxy_req in proxy_list:
+        result = proxy_pool.add_proxy(
+            url=proxy_req.url,
+            username=proxy_req.username,
+            password=proxy_req.password,
+            name=proxy_req.name,
+        )
+        if result.get("success"):
+            added += 1
+
+    return {
+        "success": True,
+        "added": added,
+        "total": len(proxy_list),
+    }
+
+
+@app.delete("/proxy/pool/clear")
+async def clear_proxy_pool():
+    """清空代理池"""
+    proxy_pool.proxies.clear()
+    proxy_pool.current_index = 0
+    proxy_pool.failed_proxies.clear()
+    return {"success": True, "message": "代理池已清空"}
+
+
+# Auto-rotate proxy middleware for crawl requests
+def get_proxy_from_pool() -> Optional[Dict[str, Any]]:
+    """从代理池获取代理 (用于爬虫中间件)"""
+    return proxy_pool.get_next_proxy()
 
 
 class CookieRequest(BaseModel):
@@ -2273,177 +2911,209 @@ async def validate_cookies(request: CookieRequest):
     }
 
 
-# ============ CAPTCHA Solving API Endpoints ============
+# ============ Auto Cookie Fetching ============
+class AutoCookieFetchRequest(BaseModel):
+    platform: str  # taobao, tmall, amazon, ebay, jd, 1688, shopify
+    username: Optional[str] = None  # Login username (optional)
+    password: Optional[str] = None  # Login password (optional)
+    login_url: Optional[str] = None  # Custom login URL
+    use_proxy: bool = False
+    proxy_url: Optional[str] = None
+    headless: bool = True  # Run browser in headless mode
 
 
-class CaptchaSolveRequest(BaseModel):
-    image_base64: Optional[str] = None
-    image_url: Optional[str] = None
-    task_type: str = "ReCaptchaV2Task"
-    website_url: Optional[str] = None
-    website_key: Optional[str] = None
+@app.post("/cookies/fetch")
+async def auto_fetch_cookies(request: AutoCookieFetchRequest):
+    """自动获取平台 cookies - 使用 Playwright 登录并提取 cookies"""
+    platform = request.platform.lower()
 
+    if platform not in PLATFORM_COOKIE_GUIDE:
+        return {
+            "error": f"不支持的平台: {platform}",
+            "supported": list(PLATFORM_COOKIE_GUIDE.keys()),
+        }
 
-class CaptchaOllamaRequest(BaseModel):
-    image_base64: Optional[str] = None
-    image_url: Optional[str] = None
-    model: str = "qwen2.5-vision"
-
-
-class CaptchaTesseractRequest(BaseModel):
-    image_base64: Optional[str] = None
-    image_url: Optional[str] = None
-
-
-@app.post("/captcha/ohmycaptcha")
-async def solve_with_ohmycaptcha(request: CaptchaSolveRequest):
-    """使用 OhMyCaptcha 自托管 API 解决验证码
-    需要先部署 OhMyCaptcha 服务: https://github.com/shenhao-stu/ohmycaptcha
-    """
-    result = await CaptchaSolver.solve_with_ohmycaptcha(
-        image_base64=request.image_base64,
-        image_url=request.image_url,
-        task_type=request.task_type,
-        website_url=request.website_url,
-        website_key=request.website_key,
-    )
-    return result
-
-
-@app.post("/captcha/ollama")
-async def solve_with_ollama_vision(request: CaptchaOllamaRequest):
-    """使用本地 Ollama Vision 模型识别验证码
-    需要安装支持 vision 的模型: ollama pull qwen2.5-vision
-    """
-    result = await CaptchaSolver.solve_with_ollama_vision(
-        image_base64=request.image_base64,
-        image_url=request.image_url,
-        model=request.model,
-    )
-    return result
-
-
-@app.post("/captcha/tesseract")
-async def solve_with_tesseract(request: CaptchaTesseractRequest):
-    """使用 Tesseract OCR 识别简单验证码
-    需要安装: pip install pytesseract
-    """
-    result = await CaptchaSolver.solve_with_tesseract(
-        image_base64=request.image_base64,
-        image_url=request.image_url,
-    )
-    return result
-
-
-@app.get("/captcha/status")
-async def get_captcha_status():
-    """获取验证码解决服务状态"""
-    status = {
-        "ohmycaptcha": {
-            "available": False,
-            "url": CaptchaSolver.DEFAULT_OHMYCAPTCHA_URL,
-        },
-        "ollama_vision": {
-            "available": False,
-            "url": CaptchaSolver.DEFAULT_OLLAMA_URL,
-            "models": [],
-        },
-        "tesseract": {
-            "available": False,
-        },
+    platform_info = PLATFORM_COOKIE_GUIDE[platform]
+    login_urls = {
+        "taobao": "https://login.taobao.com/",
+        "tmall": "https://login.tmall.com/",
+        "amazon": "https://www.amazon.com/ap/signin",
+        "ebay": "https://signin.ebay.com/",
+        "jd": "https://passport.jd.com/",
+        "1688": "https://login.1688.com/",
+        "shopify": None,  # Shopify stores have their own login
     }
 
-    # 检查 OhMyCaptcha
+    login_url = request.login_url or login_urls.get(platform)
+    domains = platform_info.get("domains", [])
+
     try:
-        import aiohttp
+        from playwright.async_api import async_playwright
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{CaptchaSolver.DEFAULT_OHMYCAPTCHA_URL}/health",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                status["ohmycaptcha"]["available"] = resp.status == 200
-    except:
-        pass
+        async with async_playwright() as p:
+            # Launch browser
+            browser_args = ["--disable-blink-features=AutomationControlled"]
+            if request.use_proxy and request.proxy_url:
+                browser = await p.chromium.launch(
+                    headless=request.headless,
+                    args=browser_args,
+                    proxy={"server": request.proxy_url},
+                )
+            else:
+                browser = await p.chromium.launch(
+                    headless=request.headless,
+                    args=browser_args,
+                )
 
-    # 检查 Ollama Vision
-    try:
-        import aiohttp
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+            )
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{CaptchaSolver.DEFAULT_OLLAMA_URL}/api/tags",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    vision_models = [
-                        m["name"]
-                        for m in data.get("models", [])
-                        if "vision" in m.get("name", "").lower()
-                        or "vl" in m.get("name", "").lower()
-                    ]
-                    status["ollama_vision"]["available"] = len(vision_models) > 0
-                    status["ollama_vision"]["models"] = vision_models
-    except:
-        pass
+            page = await context.new_page()
 
-    # 检查 Tesseract
-    try:
-        import pytesseract
+            # Navigate to login page
+            if login_url:
+                logger.info(f"Navigating to {login_url}")
+                await page.goto(login_url, wait_until="networkidle", timeout=60000)
 
-        status["tesseract"]["available"] = True
-    except ImportError:
-        pass
+                # Wait for user to login manually if no credentials
+                if not request.username or not request.password:
+                    # Show QR code or login form and wait
+                    await page.wait_for_timeout(5000)
 
-    return status
+                    # Check if QR code is displayed
+                    qr_code = await page.query_selector(
+                        ".qrcode, .login-qrcode, #nc_1_n1z"
+                    )
+                    if qr_code:
+                        return {
+                            "status": "waiting_for_login",
+                            "message": "请在浏览器中完成登录，cookies 将自动提取",
+                            "platform": platform,
+                            "instruction": "1. 扫描页面上的二维码登录\n2. 登录成功后等待 10 秒\n3. 重新调用此接口获取 cookies",
+                        }
+
+                # If credentials provided, try to login
+                if request.username and request.password:
+                    try:
+                        # Fill username
+                        await page.fill(
+                            "#TPL_username_1, #fm-login-id, #loginId, input[name='loginId']",
+                            request.username,
+                            timeout=5000,
+                        )
+                        await page.wait_for_timeout(500)
+
+                        # Fill password
+                        await page.fill(
+                            "#TPL_password_1, #fm-login-password, #password, input[name='password']",
+                            request.password,
+                            timeout=5000,
+                        )
+                        await page.wait_for_timeout(500)
+
+                        # Click login button
+                        await page.click(
+                            "#TPL_submit_1, .login-btn, #loginSubmit", timeout=5000
+                        )
+
+                        # Wait for navigation
+                        await page.wait_for_load_state("networkidle", timeout=30000)
+
+                    except Exception as login_err:
+                        logger.warning(f"Auto login failed: {login_err}")
+                        return {
+                            "status": "login_failed",
+                            "error": str(login_err),
+                            "message": "自动登录失败，请手动登录后重试",
+                        }
+
+            # Wait for user to be logged in
+            await page.wait_for_timeout(10000)
+
+            # Get all cookies
+            all_cookies = await context.cookies()
+
+            # Filter cookies for platform domains
+            platform_cookies = []
+            for cookie in all_cookies:
+                cookie_domain = cookie.get("domain", "")
+                if any(
+                    d.replace(".", "") in cookie_domain.replace(".", "")
+                    for d in domains
+                    if d
+                ):
+                    platform_cookies.append(
+                        {
+                            "name": cookie.get("name"),
+                            "value": cookie.get("value"),
+                            "domain": cookie.get("domain"),
+                            "path": cookie.get("path", "/"),
+                            "secure": cookie.get("secure", False),
+                            "httpOnly": cookie.get("httpOnly", False),
+                            "expires": cookie.get("expires", -1),
+                        }
+                    )
+
+            await browser.close()
+
+            if platform_cookies:
+                # Store cookies
+                for domain in domains:
+                    cookies_store[domain] = platform_cookies
+
+                return {
+                    "success": True,
+                    "platform": platform,
+                    "cookies_count": len(platform_cookies),
+                    "cookies": [
+                        {"name": c["name"], "domain": c["domain"]}
+                        for c in platform_cookies
+                    ],
+                    "message": f"成功获取 {len(platform_cookies)} 个 cookies",
+                }
+            else:
+                return {
+                    "success": False,
+                    "platform": platform,
+                    "message": "未能获取 cookies，请确保已成功登录",
+                }
+
+    except Exception as e:
+        logger.error(f"Auto cookie fetch error: {e}")
+        return {"success": False, "error": str(e)}
 
 
-@app.get("/captcha/guide")
-async def get_captcha_guide():
-    """获取验证码解决指南"""
+@app.post("/cookies/fetch/manual")
+async def fetch_cookies_manual(platform: str, headless: bool = False):
+    """手动模式获取 cookies - 返回登录页面URL供用户扫码登录"""
+    platform = platform.lower()
+
+    if platform not in PLATFORM_COOKIE_GUIDE:
+        return {"error": f"不支持的平台: {platform}"}
+
+    login_urls = {
+        "taobao": "https://login.taobao.com/",
+        "tmall": "https://login.tmall.com/",
+        "amazon": "https://www.amazon.com/ap/signin",
+        "ebay": "https://signin.ebay.com/",
+        "jd": "https://passport.jd.com/",
+        "1688": "https://login.1688.com/",
+    }
+
     return {
-        "methods": {
-            "ohmycaptcha": {
-                "name": "OhMyCaptcha",
-                "description": "自托管 YesCaptcha 风格验证码解决服务",
-                "url": "https://github.com/shenhao-stu/ohmycaptcha",
-                "deployment": "Docker: docker run -p 8000:8000 shenhao/ohmycaptcha",
-                "pros": [
-                    "支持多种验证码类型",
-                    "自托管无需付费",
-                    "支持 reCAPTCHA/hCaptcha/Turnstile",
-                ],
-                "cons": ["需要自托管部署"],
-            },
-            "ollama_vision": {
-                "name": "Ollama Vision",
-                "description": "使用本地大模型识别验证码",
-                "url": "https://ollama.com/library",
-                "deployment": "ollama pull qwen2.5-vision",
-                "pros": ["免费", "本地运行无需联网", "支持图像理解"],
-                "cons": ["需要高显存GPU", "对复杂验证码效果一般"],
-            },
-            "tesseract": {
-                "name": "Tesseract OCR",
-                "description": "开源 OCR 引擎",
-                "url": "https://github.com/tesseract-ocr/tesseract",
-                "deployment": "pip install pytesseract && 安装 tesseract 程序",
-                "pros": ["完全免费", "无需GPU"],
-                "cons": ["对复杂验证码效果差", "需要图像预处理"],
-            },
-            "stealth": {
-                "name": "Stealth 绕过",
-                "description": "通过模拟人类行为绕过验证码",
-                "pros": ["无需额外服务", "部分验证码可自动消失"],
-                "cons": ["不是所有验证码都能绕过"],
-            },
-        },
-        "recommended": {
-            "简单验证码": "tesseract",
-            "中等验证码": "ollama_vision",
-            "复杂验证码": "ohmycaptcha",
-            "滑动验证码": "ohmycaptcha (专用任务类型)",
+        "platform": platform,
+        "login_url": login_urls.get(platform),
+        "instructions": [
+            f"1. 访问 {login_urls.get(platform, '登录页面')} 扫码登录",
+            "2. 登录成功后等待 10 秒",
+            "3. 调用 POST /cookies/fetch 完成 cookies 提取",
+        ],
+        "next_step": {
+            "method": "POST",
+            "url": "/cookies/fetch",
+            "body": {"platform": platform},
         },
     }
 
