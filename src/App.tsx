@@ -51,7 +51,7 @@ export default function App() {
   const [newUrl, setNewUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage' | 'advanced'>('queue');
   const [activeCrawlTab, setActiveCrawlTab] = useState<'basic' | 'deep' | 'adaptive' | 'ecommerce' | 'seller'>('basic');
-  const [backendConfig, setBackendConfig] = useState<{ enabled: boolean; url: string }>({ enabled: false, url: 'http://localhost:8000' });
+  const [backendConfig, setBackendConfig] = useState<{ enabled: boolean; url: string; autoDetected?: boolean }>({ enabled: true, url: 'http://localhost:8001', autoDetected: false });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [downloadTasks, setDownloadTasks] = useState<DownloadTask[]>([]);
   const [cookieSyncList, setCookieSyncList] = useState<CookieSync[]>([]);
@@ -216,6 +216,38 @@ export default function App() {
     localStorage.setItem('language', language);
   }, [language]);
 
+  // 自动检测后端端口
+  useEffect(() => {
+    const detectBackend = async () => {
+      // 首先尝试常见的几个端口
+      const ports = [8001, 8000, 8002, 8080, 3000, 5000];
+      
+      for (const port of ports) {
+        try {
+          const response = await fetch(`http://localhost:${port}/port`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(2000),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const actualPort = data.port || port;
+            const newConfig = { enabled: true, url: `http://localhost:${actualPort}`, autoDetected: true };
+            setBackendConfig(newConfig);
+            import('./utils/api').then(m => m.setBackendConfig({ enabled: true, url: `http://localhost:${actualPort}` }));
+            addLog('success', `🚀 ${language === 'zh' ? '已连接到后端服务' : 'Connected to backend'}: http://localhost:${actualPort}`);
+            return;
+          }
+        } catch {
+          // 继续尝试下一个端口
+        }
+      }
+      
+      // 如果都没检测到，显示警告
+      addLog('warning', language === 'zh' ? '⚠️ 未检测到后端服务，请确保后端已启动' : '⚠️ Backend not detected, please ensure backend is running');
+    };
+    detectBackend();
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -379,7 +411,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportExcel = (includeContent = false) => {
+  const handleExportExcel = (includeContent = true) => {
     const completed = targets.filter(t => t.status === 'completed' && t.result);
     if (completed.length === 0) {
       addLog('error', 'No completed results to export');
@@ -393,14 +425,14 @@ export default function App() {
       Keywords: t.result?.keywords || '',
       WordCount: t.result?.wordCount || 0,
       ScrapedAt: t.result?.scrapedAt || '',
-      ...(includeContent ? { Content: t.result?.content || '' } : {})
+      Content: t.result?.content || t.result?.cleanedContent || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Results');
-    XLSX.writeFile(wb, includeContent ? 'crawling-results-full.xlsx' : 'crawling-results.xlsx');
-    addLog('success', `Exported ${completed.length} results to Excel`);
+    XLSX.writeFile(wb, `crawling-data-${Date.now()}.xlsx`);
+    addLog('success', `📊 Exported ${completed.length} results with content to Excel`);
   };
 
   const handleExportMarkdown = () => {
@@ -410,74 +442,73 @@ export default function App() {
       return;
     }
 
-    let md = '# Crawling Results\n\n';
-    md += `> Total: ${completed.length} | Exported: ${new Date().toISOString()}\n\n`;
+    let md = '';
     
     completed.forEach(t => {
-      md += `## ${t.result?.title || t.url}\n\n`;
-      md += `- **URL**: ${t.url}\n`;
-      if (t.result?.description) md += `- **Description**: ${t.result.description}\n`;
-      if (t.result?.keywords) md += `- **Keywords**: ${t.result.keywords}\n`;
-      md += `- **Word Count**: ${t.result?.wordCount || 0}\n`;
-      md += `- **Scraped**: ${t.result?.scrapedAt || ''}\n\n`;
+      md += `# ${t.result?.title || t.url}\n\n`;
+      md += `**URL**: ${t.url}\n`;
+      if (t.result?.description) md += `**Description**: ${t.result.description}\n`;
+      if (t.result?.keywords) md += `**Keywords**: ${t.result.keywords}\n`;
+      md += `**Word Count**: ${t.result?.wordCount || 0}\n`;
+      md += `**Scraped**: ${t.result?.scrapedAt || ''}\n\n`;
+      md += `---\n\n`;
+      md += `## Content\n\n`;
+      md += t.result?.content || t.result?.cleanedContent || '';
+      md += `\n\n---\n\n`;
     });
 
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
     downloadBlob(blob, 'crawling-results.md');
-    addLog('success', `Exported ${completed.length} results to Markdown`);
+    addLog('success', `📝 Exported ${completed.length} results with content to Markdown`);
   };
 
-  const handleExportResultsCSV = (includeContent = false) => {
+  const handleExportResultsCSV = () => {
     const completed = targets.filter(t => t.status === 'completed' && t.result);
     if (completed.length === 0) {
       addLog('error', 'No completed results to export');
       return;
     }
 
-    const data = completed.map(t => {
-      const base = {
-        URL: t.url,
-        Title: t.result?.title || '',
-        Description: t.result?.description || '',
-        Keywords: t.result?.keywords || '',
-        WordCount: t.result?.wordCount || 0,
-        ScrapedAt: t.result?.scrapedAt || '',
-        Images: t.result?.images?.join('\n') || '',
-        Videos: t.result?.videos?.join('\n') || '',
-      };
-      return includeContent ? { ...base, Content: t.result?.cleanedContent || t.result?.content || '' } : base;
-    });
+    const data = completed.map(t => ({
+      URL: t.url,
+      Title: t.result?.title || '',
+      Description: t.result?.description || '',
+      Keywords: t.result?.keywords || '',
+      WordCount: t.result?.wordCount || 0,
+      ScrapedAt: t.result?.scrapedAt || '',
+      Images: t.result?.images?.join('\n') || '',
+      Videos: t.result?.videos?.join('\n') || '',
+      Content: t.result?.content || t.result?.cleanedContent || ''
+    }));
 
     const csv = '\ufeff' + Papa.unparse(data);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    downloadBlob(blob, includeContent ? 'crawling-results-full.csv' : 'crawling-results.csv');
-    addLog('success', `Exported ${completed.length} results to CSV`);
+    downloadBlob(blob, `crawling-data-${Date.now()}.csv`);
+    addLog('success', `📊 Exported ${completed.length} results with content to CSV`);
   };
 
-  const handleExportResultsJSON = (includeContent = false) => {
+  const handleExportResultsJSON = () => {
     const completed = targets.filter(t => t.status === 'completed' && t.result);
     if (completed.length === 0) {
       addLog('error', 'No completed results to export');
       return;
     }
 
-    const data = completed.map(t => {
-      const base = {
-        url: t.url,
-        title: t.result?.title,
-        description: t.result?.description,
-        keywords: t.result?.keywords,
-        wordCount: t.result?.wordCount,
-        images: t.result?.images,
-        videos: t.result?.videos,
-        scrapedAt: t.result?.scrapedAt
-      };
-      return includeContent ? { ...base, content: t.result?.cleanedContent || t.result?.content } : base;
-    });
+    const data = completed.map(t => ({
+      url: t.url,
+      title: t.result?.title,
+      description: t.result?.description,
+      keywords: t.result?.keywords,
+      wordCount: t.result?.wordCount,
+      images: t.result?.images,
+      videos: t.result?.videos,
+      scrapedAt: t.result?.scrapedAt,
+      content: t.result?.content || t.result?.cleanedContent || ''
+    }));
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, includeContent ? 'crawling-results-full.json' : 'crawling-results.json');
-    addLog('success', `Exported ${completed.length} results to JSON`);
+    downloadBlob(blob, `crawling-data-${Date.now()}.json`);
+    addLog('success', `📄 Exported ${completed.length} results with content to JSON`);
   };
 
   const handleSaveResume = () => {
@@ -1144,6 +1175,10 @@ export default function App() {
       
       setAutoResults(result);
       addLog('success', `${language === 'zh' ? '智能爬取完成' : 'Smart crawl completed'}! ${language === 'zh' ? '使用策略' : 'Strategy'}: ${result.strategy?.used} (${language === 'zh' ? '内容长度' : 'Content length'}: ${result.markdown_length})`);
+      // 显示warning（如果需要登录但没有cookie）
+      if (result.warning) {
+        addLog('warning', result.warning);
+      }
     } catch (err: any) {
       addLog('error', `${language === 'zh' ? '智能爬取失败' : 'Smart crawl failed'}: ${err.message}`);
     } finally {
@@ -1166,6 +1201,9 @@ export default function App() {
       });
       setHttpResults(result);
       addLog('success', `${language === 'zh' ? '爬取完成' : 'Crawl completed'}! ${language === 'zh' ? '内容长度' : 'Content length'}: ${result.markdown_length}, Strategy: ${result.strategy?.used}`);
+      if (result.warning) {
+        addLog('warning', result.warning);
+      }
     } catch (err: any) {
       addLog('error', `${language === 'zh' ? '爬取失败' : 'Crawl failed'}: ${err.message}`);
     } finally {
@@ -1839,20 +1877,14 @@ export default function App() {
                       <FileText className="w-3.5 h-3.5" /> Markdown
                     </button>
                     {/* Other formats */}
-                    <button onClick={() => handleExportExcel(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 border border-green-200 dark:border-green-700 rounded-md text-xs font-medium transition-colors">
+                    <button onClick={() => handleExportExcel()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 border border-green-200 dark:border-green-700 rounded-md text-xs font-medium transition-colors">
                       Excel
                     </button>
-                    <button onClick={() => handleExportResultsCSV(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800 border border-emerald-200 dark:border-emerald-700 rounded-md text-xs font-medium transition-colors">
+                    <button onClick={() => handleExportResultsCSV()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800 border border-emerald-200 dark:border-emerald-700 rounded-md text-xs font-medium transition-colors">
                       CSV
                     </button>
-                    <button onClick={() => handleExportResultsCSV(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200 dark:hover:bg-emerald-700 border border-emerald-300 dark:border-emerald-600 rounded-md text-xs font-medium transition-colors">
-                      CSV (Full)
-                    </button>
-                    <button onClick={() => handleExportResultsJSON(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700 rounded-md text-xs font-medium transition-colors">
+                    <button onClick={() => handleExportResultsJSON()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700 rounded-md text-xs font-medium transition-colors">
                       JSON
-                    </button>
-                    <button onClick={() => handleExportResultsJSON(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 border border-blue-300 dark:border-blue-600 rounded-md text-xs font-medium transition-colors">
-                      JSON (Full)
                     </button>
                   </div>
                 </div>
@@ -2052,21 +2084,52 @@ export default function App() {
                         <Zap className="w-4 h-4" />
                         {isAdaptiveCrawling ? (language === 'zh' ? '爬取中...' : 'Crawling...') : (language === 'zh' ? '开始爬取' : 'Start')}
                       </button>
+                      {adaptiveCrawlResults && (
+                        <button
+                          onClick={() => setAdaptiveCrawlResults(null)}
+                          className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-600 dark:hover:bg-slate-500 text-slate-700 dark:text-slate-200 rounded-lg text-sm inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {language === 'zh' ? '清理' : 'Clear'}
+                        </button>
+                      )}
                     </div>
                     {adaptiveCrawlResults && (
-                      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
-                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '页数' : 'Pages'}</span>: {adaptiveCrawlResults.pages_crawled}
+                      <div className="mt-2 space-y-2">
+                        {/* 统计信息 */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                            <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '页数' : 'Pages'}</span>: {adaptiveCrawlResults.pages_crawled}
+                          </div>
+                          <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                            <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '置信度' : 'Conf'}</span>: {(adaptiveCrawlResults.confidence * 100).toFixed(0)}%
+                          </div>
+                          <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                            <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '停止' : 'Stopped'}</span>: {adaptiveCrawlResults.stopped_reason}
+                          </div>
+                          <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
+                            <span>{language === 'zh' ? '覆盖' : 'Coverage'}</span>: {(adaptiveCrawlResults.coverage_score * 100).toFixed(0)}%
+                          </div>
                         </div>
-                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
-                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '置信度' : 'Conf'}</span>: {(adaptiveCrawlResults.confidence * 100).toFixed(0)}%
-                        </div>
-                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
-                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">{language === 'zh' ? '停止' : 'Stopped'}</span>: {adaptiveCrawlResults.stopped_reason}
-                        </div>
-                        <div className="bg-cyan-50 dark:bg-cyan-900/30 p-2 rounded">
-                          <span>{language === 'zh' ? '覆盖' : 'Coverage'}</span>: {(adaptiveCrawlResults.coverage_score * 100).toFixed(0)}%
-                        </div>
+                        
+                        {/* 爬取结果列表 */}
+                        {adaptiveCrawlResults.results && adaptiveCrawlResults.results.length > 0 && (
+                          <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
+                            <div className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                              {language === 'zh' ? `爬取结果 (${adaptiveCrawlResults.results.length} 个页面)` : `Crawl Results (${adaptiveCrawlResults.results.length} pages)`}
+                            </div>
+                            {adaptiveCrawlResults.results.map((item: any, idx: number) => (
+                              <div key={idx} className="p-2 bg-white dark:bg-slate-800 border border-cyan-200 dark:border-cyan-700 rounded-lg text-xs">
+                                <div className="font-medium text-cyan-600 dark:text-cyan-400 truncate">
+                                  {item.url || `Page ${idx + 1}`}
+                                </div>
+                                <div className="mt-1 text-slate-600 dark:text-slate-300 line-clamp-3">
+                                  {item.content || item.text || item.markdown || (language === 'zh' ? '无内容' : 'No content')}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

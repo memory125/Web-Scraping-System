@@ -32,40 +32,110 @@ litellm.drop_params = True
 
 crawler: Optional[AsyncWebCrawler] = None
 
+# 当前服务配置
+CURRENT_PORT = 8001
+CURRENT_HOST = "0.0.0.0"
+
 
 # ============ Smart Crawler Strategy Selector ============
 class CrawlStrategy:
-    """智能爬虫策略选择器"""
+    """智能爬虫策略选择器 - 集成Crawl4AI所有高级功能"""
 
     # 高风险反爬网站（需要特殊处理）
     ANTI_BOT_DOMAINS = {
-        "bbc.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "bbc.co.uk": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "nytimes.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
+        "bbc.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "bbc.co.uk": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "nytimes.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
         "washingtonpost.com": {
-            "strategy": "stealth",
+            "strategy": "undetected_magic",
             "timeout": 120000,
             "wait_for": None,
         },
-        "theguardian.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "cnn.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "reuters.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "amazon.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "amazon.co.uk": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "ebay.com": {"strategy": "stealth", "timeout": 120000, "wait_for": None},
-        "facebook.com": {"strategy": "undetected", "timeout": 120000, "wait_for": None},
-        "twitter.com": {"strategy": "undetected", "timeout": 120000, "wait_for": None},
-        "x.com": {"strategy": "undetected", "timeout": 120000, "wait_for": None},
+        "theguardian.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "cnn.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "reuters.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "amazon.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "amazon.co.uk": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "ebay.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "facebook.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "twitter.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "x.com": {"strategy": "undetected_magic", "timeout": 120000, "wait_for": None},
         "instagram.com": {
-            "strategy": "undetected",
+            "strategy": "undetected_magic",
             "timeout": 120000,
             "wait_for": None,
         },
-        "reddit.com": {"strategy": "stealth", "timeout": 90000, "wait_for": None},
-        "linkedin.com": {"strategy": "undetected", "timeout": 120000, "wait_for": None},
-        "weibo.com": {"strategy": "http", "timeout": 30000, "wait_for": None},
-        "weibo.cn": {"strategy": "http", "timeout": 30000, "wait_for": None},
-        "t.co": {"strategy": "http", "timeout": 30000, "wait_for": None},
+        "reddit.com": {"strategy": "stealth_magic", "timeout": 90000, "wait_for": None},
+        "linkedin.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "wallstreetcn.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "weibo.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "weibo.cn": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
+        "t.co": {"strategy": "stealth_magic", "timeout": 60000, "wait_for": None},
+        "jfinternational.com": {
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+            "wait_for": None,
+        },
     }
 
     # 简单静态网站
@@ -79,12 +149,84 @@ class CrawlStrategy:
         },
     }
 
+    # 需要登录的网站的用户名URL模式
+    LOGIN_REQUIRED_PATTERNS = {
+        "weibo.com": {
+            "patterns": ["/n/", "/u/", "/t/"],
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+        },
+        "weibo.cn": {
+            "patterns": ["/n/", "/u/", "/t/"],
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+        },
+        "twitter.com": {
+            "patterns": ["/", "/status/"],
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+        },
+        "x.com": {
+            "patterns": ["/", "/status/"],
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+        },
+        "instagram.com": {
+            "patterns": ["/", "/p/", "/reel/"],
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+        },
+        "facebook.com": {
+            "patterns": ["/", "/photo/", "/video/"],
+            "strategy": "undetected_magic",
+            "timeout": 120000,
+        },
+    }
+
+    @classmethod
+    def _has_username_pattern(cls, url: str) -> tuple[bool, str]:
+        """检测URL是否包含用户名模式"""
+        url_lower = url.lower()
+        for domain, config in cls.LOGIN_REQUIRED_PATTERNS.items():
+            if domain in url_lower:
+                for pattern in config["patterns"]:
+                    if pattern in url_lower:
+                        return True, domain
+        return False, ""
+
+    @classmethod
+    def _extract_domain(cls, url: str) -> str:
+        """从URL中提取域名"""
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            if domain.startswith("www."):
+                domain = domain[4:]
+            return domain
+        except:
+            return ""
+
     @classmethod
     def analyze(cls, url: str) -> Dict[str, Any]:
         """分析URL并返回最佳策略"""
         url_lower = url.lower()
 
-        # 检查反爬网站
+        # 检查是否是需要登录的用户名URL
+        has_username, domain = cls._has_username_pattern(url)
+        if has_username and domain in cls.LOGIN_REQUIRED_PATTERNS:
+            config = cls.LOGIN_REQUIRED_PATTERNS[domain]
+            return {
+                "strategy": config["strategy"],
+                "timeout": config["timeout"],
+                "wait_for": None,
+                "reason": f"Detected username pattern on {domain}, requires login",
+                "confidence": 0.95,
+                "requires_login": True,
+            }
+
+        # 检查反爬网站（无用户名的普通页面）
         for domain, config in cls.ANTI_BOT_DOMAINS.items():
             if domain in url_lower:
                 return {
@@ -116,110 +258,316 @@ class CrawlStrategy:
                 "confidence": 0.7,
             }
 
-        # 默认策略
+        # 默认策略 - 使用最优模式
         return {
-            "strategy": "default",
+            "strategy": "stealth",
             "timeout": 60000,
             "wait_for": None,
-            "reason": "Default strategy for unknown sites",
+            "reason": "Default optimal strategy",
             "confidence": 0.5,
         }
 
     @classmethod
     async def crawl_with_strategy(
-        cls, url: str, crawler: AsyncWebCrawler, **kwargs
+        cls,
+        url: str,
+        crawler: AsyncWebCrawler,
+        cookies: List[Dict[str, str]] = None,
+        retry_count: int = 0,
+        **kwargs,
     ) -> Dict[str, Any]:
-        """使用智能策略爬取"""
+        """使用智能策略爬取，失败时自动切换更强策略"""
         strategy_info = cls.analyze(url)
         strategy = strategy_info["strategy"]
 
+        # 获取域名对应的cookies
+        domain = cls._extract_domain(url)
+        if not cookies and domain in cookies_store:
+            cookies = cookies_store[domain]
+
+        # 检查是否需要登录但没有cookie
+        requires_login = strategy_info.get("requires_login", False)
+        has_cookie = cookies and len(cookies) > 0
+
+        if requires_login and not has_cookie:
+            # 尝试从cookies_store获取
+            if domain in cookies_store and len(cookies_store[domain]) > 0:
+                cookies = cookies_store[domain]
+                has_cookie = True
+
         try:
-            if strategy == "http":
-                # HTTP纯请求模式（最快）
-                return await cls._http_crawl(url)
+            result = await cls._execute_strategy(
+                url, crawler, strategy, strategy_info, cookies
+            )
 
-            elif strategy == "text_only":
-                # 纯文本模式
-                browser_cfg = BrowserConfig(text_mode=True, headless=True)
-                run_config = CrawlerRunConfig(
-                    cache_mode=CacheMode.BYPASS,
-                    page_timeout=strategy_info["timeout"],
-                    wait_for=strategy_info["wait_for"],
-                )
-                result = await crawler.arun(
-                    url=url, config=run_config, browser_config=browser_cfg
-                )
-                return {
+            # 检查内容是否有效
+            if cls._is_content_valid(result):
+                result_data = {
                     "result": result,
                     "strategy_used": strategy,
                     "strategy_info": strategy_info,
                 }
+                # 如果需要登录但没有cookie，添加警告
+                if requires_login and not has_cookie:
+                    result_data["warning"] = (
+                        f"网站 {domain} 可能需要登录，建议添加Cookie以获取完整内容"
+                    )
+                return result_data
 
-            elif strategy == "stealth":
-                # Stealth模式
-                browser_cfg = BrowserConfig(headless=True, enable_stealth=True)
-                run_config = CrawlerRunConfig(
-                    cache_mode=CacheMode.BYPASS,
-                    page_timeout=strategy_info["timeout"],
-                    wait_for=strategy_info["wait_for"],
-                )
-                result = await crawler.arun(
-                    url=url, config=run_config, browser_config=browser_cfg
-                )
-                return {
-                    "result": result,
-                    "strategy_used": strategy,
-                    "strategy_info": strategy_info,
-                }
+            # 内容无效，尝试更强策略
+            if retry_count < 2:
+                stronger_strategy = cls._get_stronger_strategy(strategy)
+                if stronger_strategy != strategy:
+                    strategy_info["reason"] = (
+                        f"Content empty, retrying with {stronger_strategy}"
+                    )
+                    result = await cls._execute_strategy(
+                        url, crawler, stronger_strategy, strategy_info, cookies
+                    )
+                    if cls._is_content_valid(result):
+                        result_data = {
+                            "result": result,
+                            "strategy_used": stronger_strategy,
+                            "strategy_info": strategy_info,
+                        }
+                        if requires_login and not has_cookie:
+                            result_data["warning"] = (
+                                f"网站 {domain} 可能需要登录，建议添加Cookie以获取完整内容"
+                            )
+                        return result_data
 
-            elif strategy == "undetected":
-                # Undetected模式（最强反检测）
-                try:
-                    from crawl4ai import UndetectedAdapter
-
-                    adapter = UndetectedAdapter()
-                    browser_cfg = BrowserConfig(headless=True, enable_stealth=True)
-                except:
-                    browser_cfg = BrowserConfig(headless=True, enable_stealth=True)
-
-                run_config = CrawlerRunConfig(
-                    cache_mode=CacheMode.BYPASS,
-                    page_timeout=strategy_info["timeout"],
-                    wait_for=strategy_info["wait_for"],
+            # 最终回退到HTTP
+            http_result = await cls._http_crawl(
+                url, fallback=True, original_error="All browser strategies failed"
+            )
+            if requires_login and not has_cookie:
+                http_result["warning"] = (
+                    f"网站 {domain} 可能需要登录，建议添加Cookie以获取完整内容"
                 )
-                result = await crawler.arun(
-                    url=url, config=run_config, browser_config=browser_cfg
-                )
-                return {
-                    "result": result,
-                    "strategy_used": strategy,
-                    "strategy_info": strategy_info,
-                }
-
-            else:
-                # 默认模式
-                run_config = CrawlerRunConfig(
-                    cache_mode=CacheMode.BYPASS,
-                    page_timeout=strategy_info["timeout"],
-                    wait_for=strategy_info["wait_for"],
-                )
-                result = await crawler.arun(url=url, config=run_config)
-                return {
-                    "result": result,
-                    "strategy_used": "default",
-                    "strategy_info": strategy_info,
-                }
+            return http_result
 
         except Exception as e:
-            # 如果选择的策略失败，自动回退到HTTP
             error_str = str(e)
             if (
                 "Timeout" in error_str
                 or "timeout" in error_str
                 or "Failed" in error_str
             ):
+                if retry_count < 2:
+                    stronger = cls._get_stronger_strategy(strategy)
+                    return await cls.crawl_with_strategy(
+                        url, crawler, cookies, retry_count=retry_count + 1
+                    )
                 return await cls._http_crawl(url, fallback=True, original_error=str(e))
             raise
+
+    @classmethod
+    def _is_content_valid(cls, result) -> bool:
+        """检查爬取结果是否有效"""
+        if not result:
+            return False
+        if hasattr(result, "success") and not result.success:
+            return False
+        content = ""
+        if hasattr(result, "markdown") and result.markdown:
+            content = getattr(result.markdown, "raw_markdown", "") or ""
+        elif hasattr(result, "html") and result.html:
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(result.html, "html.parser")
+            content = soup.get_text(strip=True)
+        return len(content) > 100
+
+    @classmethod
+    def _get_stronger_strategy(cls, current: str) -> str:
+        """获取更强的爬取策略 - 渐进式增强"""
+        strategy_chain = {
+            "text_only": "stealth",
+            "stealth": "stealth_magic",
+            "stealth_magic": "stealth_full",
+            "stealth_full": "undetected",
+            "undetected": "undetected_magic",
+            "undetected_magic": "http",
+            "default": "stealth_magic",
+            "http": "http",
+        }
+        return strategy_chain.get(current, "stealth_magic")
+
+    @classmethod
+    async def _execute_strategy(
+        cls,
+        url: str,
+        crawler: AsyncWebCrawler,
+        strategy: str,
+        strategy_info: Dict[str, Any],
+        cookies: List[Dict[str, str]] = None,
+    ):
+        """执行指定的爬取策略 - 集成Crawl4AI所有高级反检测功能"""
+
+        # 反爬网站使用wait_until="load"更安全
+        use_wait_load = strategy in [
+            "stealth",
+            "stealth_magic",
+            "undetected",
+            "undetected_magic",
+        ]
+
+        if strategy == "http":
+            return (await cls._http_crawl(url))["result"]
+
+        elif strategy == "text_only":
+            browser_cfg = BrowserConfig(
+                text_mode=True,
+                headless=True,
+                cookies=cookies if cookies else None,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
+
+        elif strategy == "stealth":
+            browser_cfg = BrowserConfig(
+                headless=True,
+                enable_stealth=True,
+                cookies=cookies if cookies else None,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+                wait_until="load" if use_wait_load else None,
+                simulate_user=True,
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
+
+        elif strategy == "stealth_magic":
+            browser_cfg = BrowserConfig(
+                headless=False,
+                enable_stealth=True,
+                cookies=cookies if cookies else None,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+                wait_until="load",
+                magic=True,
+                simulate_user=True,
+                delay_before_return_html=2.0,
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
+
+        elif strategy == "stealth_full":
+            browser_cfg = BrowserConfig(
+                headless=False,
+                enable_stealth=True,
+                cookies=cookies if cookies else None,
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+                wait_until="load",
+                magic=True,
+                simulate_user=True,
+                delay_before_return_html=3.0,
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
+
+        elif strategy == "undetected":
+            try:
+                from crawl4ai import UndetectedAdapter
+
+                adapter = UndetectedAdapter()
+                browser_cfg = BrowserConfig(
+                    headless=False,
+                    enable_stealth=True,
+                    cookies=cookies if cookies else None,
+                )
+            except:
+                browser_cfg = BrowserConfig(
+                    headless=False,
+                    enable_stealth=True,
+                    cookies=cookies if cookies else None,
+                )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+                wait_until="load",
+                max_retries=2,
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
+
+        elif strategy == "undetected_magic":
+            # 最强反检测模式：Undetected + Stealth + Magic
+            try:
+                from crawl4ai import UndetectedAdapter
+
+                adapter = UndetectedAdapter()
+                browser_cfg = BrowserConfig(
+                    headless=False,
+                    enable_stealth=True,
+                    cookies=cookies if cookies else None,
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                )
+            except:
+                browser_cfg = BrowserConfig(
+                    headless=False,
+                    enable_stealth=True,
+                    cookies=cookies if cookies else None,
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+                wait_until="load",
+                max_retries=3,
+                magic=True,
+                simulate_user=True,
+                delay_before_return_html=3.0,
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
+
+        else:
+            # 默认：使用stealth+magic
+            browser_cfg = BrowserConfig(
+                headless=False,
+                enable_stealth=True,
+                cookies=cookies if cookies else None,
+            )
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=strategy_info["timeout"],
+                wait_for=strategy_info["wait_for"],
+                wait_until="load",
+                max_retries=3,
+                magic=True,
+                simulate_user=True,
+                delay_before_return_html=2.0,
+            )
+            return await crawler.arun(
+                url=url, config=run_config, browser_config=browser_cfg
+            )
 
     @classmethod
     async def _http_crawl(
@@ -406,9 +754,9 @@ async def test_llm_connection_startup():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global crawler
-    # Initialize crawler on startup
+    # Initialize crawler with smart strategy settings on startup
     browser_config = BrowserConfig(
-        headless=True,
+        headless=False,  # 非无头模式更难检测
         verbose=False,
         enable_stealth=True,
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -934,6 +1282,23 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+@app.get("/port")
+async def get_port():
+    """返回当前服务端口"""
+    return {"port": CURRENT_PORT, "message": "Current running port"}
+
+
+@app.get("/")
+async def root():
+    """根路径，返回服务信息"""
+    return {
+        "message": "Crawl4AI API",
+        "version": "1.0.0",
+        "port": CURRENT_PORT,
+        "docs": "/docs",
+    }
 
 
 @app.post("/cookies")
@@ -1716,22 +2081,32 @@ async def adaptive_crawl(request: AdaptiveCrawlRequest):
             kb = result.knowledge_base
             if isinstance(kb, list):
                 for doc in kb:
-                    if hasattr(doc, "url") and hasattr(doc, "content"):
-                        extracted_data.append(
-                            {
-                                "url": str(doc.url),
-                                "content": str(doc.content)[:2000]
-                                if doc.content
-                                else "",
-                            }
-                        )
+                    content_text = ""
+                    # Try to get full content from different attributes
+                    if hasattr(doc, "content") and doc.content:
+                        content_text = str(doc.content)
+                    elif hasattr(doc, "markdown") and doc.markdown:
+                        content_text = str(doc.markdown)
                     elif isinstance(doc, dict):
-                        extracted_data.append(
-                            {
-                                "url": str(doc.get("url", "")),
-                                "content": str(doc.get("content", ""))[:2000],
-                            }
+                        content_text = (
+                            doc.get("content", "") or doc.get("markdown", "") or ""
                         )
+
+                    # Get URL
+                    url_text = ""
+                    if hasattr(doc, "url") and doc.url:
+                        url_text = str(doc.url)
+                    elif isinstance(doc, dict):
+                        url_text = doc.get("url", "")
+
+                    extracted_data.append(
+                        {
+                            "url": url_text,
+                            "content": content_text[:5000]
+                            if content_text
+                            else "",  # 增加内容长度
+                        }
+                    )
 
         # Get coverage from documents_with_terms if available
         if hasattr(result, "documents_with_terms"):
@@ -5056,8 +5431,31 @@ async def llm_completion(request: LLMConfigRequest):
 
 if __name__ == "__main__":
     import uvicorn
+    import socket
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    def find_available_port(start_port=8001, max_attempts=100):
+        """自动查找可用端口"""
+        for port in range(start_port, start_port + max_attempts):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(("0.0.0.0", port))
+                    return port
+            except OSError:
+                continue
+        return start_port
+
+    # 自动查找可用端口
+    port = find_available_port(8001)
+
+    # 直接更新模块级变量
+    import __main__
+
+    __main__.CURRENT_PORT = port
+
+    print(f"🚀 Starting Crawl4AI Backend on port {port}")
+    print(f"📡 API URL: http://localhost:{port}")
+
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 # ============ New Advanced Features ============
 

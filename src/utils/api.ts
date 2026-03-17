@@ -1,13 +1,48 @@
 // Backend API configuration
-// Set this to your Python backend URL, or leave empty to use local crawler
+// 自动检测后端端口并连接
 
 let backendConfig = {
-  enabled: false,
+  enabled: true,
   url: 'http://localhost:8001',
+  autoDetected: false,
 };
 
+// 自动检测后端端口
+const detectBackendPort = async (): Promise<string | null> => {
+  const portsToTry = [8001, 8000, 8002, 8080, 3000, 5000];
+  
+  for (const port of portsToTry) {
+    try {
+      const response = await fetch(`http://localhost:${port}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000),
+      });
+      if (response.ok) {
+        console.log(`✅ Backend detected on port ${port}`);
+        return `http://localhost:${port}`;
+      }
+    } catch {
+      // 端口不可用，继续尝试下一个
+    }
+  }
+  return null;
+};
+
+// 初始化时自动检测后端
+if (typeof window !== 'undefined') {
+  detectBackendPort().then(detectedUrl => {
+    if (detectedUrl) {
+      backendConfig.url = detectedUrl;
+      backendConfig.autoDetected = true;
+      console.log(`🚀 Auto-connected to backend: ${detectedUrl}`);
+    } else {
+      console.log('⚠️ Backend not detected, using default port 8001');
+    }
+  });
+}
+
 export const setBackendConfig = (config: { enabled: boolean; url: string }) => {
-  backendConfig = config;
+  backendConfig = { ...backendConfig, ...config, autoDetected: false };
 };
 
 export const getBackendConfig = () => backendConfig;
@@ -16,6 +51,18 @@ export const API_CONFIG = {
   get backendUrl() { return backendConfig.url; },
   get useBackend() { return backendConfig.enabled; },
   timeout: 60000,
+  autoDetected: () => backendConfig.autoDetected,
+};
+
+// 重新检测端口
+export const reDetectBackend = async (): Promise<boolean> => {
+  const detectedUrl = await detectBackendPort();
+  if (detectedUrl) {
+    backendConfig.url = detectedUrl;
+    backendConfig.autoDetected = true;
+    return true;
+  }
+  return false;
 };
 
 export interface BackendCrawlRequest {
