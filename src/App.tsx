@@ -46,6 +46,7 @@ export default function App() {
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
+  const [currentCrawlUrl, setCurrentCrawlUrl] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'queue' | 'history' | 'schedule' | 'accounts' | 'downloads' | 'cookies' | 'ai' | 'storage' | 'advanced'>('queue');
   const [activeCrawlTab, setActiveCrawlTab] = useState<'basic' | 'deep' | 'adaptive' | 'ecommerce' | 'seller'>('basic');
@@ -1335,6 +1336,7 @@ export default function App() {
 
   const crawlSingle = useCallback(async (target: Target) => {
     addLog('info', `Starting to scrape: ${target.url}`);
+    setCurrentCrawlUrl(target.url);
     
     let useBackendCrawler = false;
     
@@ -1651,23 +1653,38 @@ export default function App() {
         </header>
 
         <div className="space-y-6">
-            {crawlState !== 'idle' && (
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-600 dark:text-slate-300">{t.progress} ({crawlState})</span>
-                  <span className="font-medium text-indigo-600 dark:text-indigo-400">{stats.progress}%</span>
-                </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                  <div className="bg-indigo-600 dark:bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${stats.progress}%` }}></div>
-                </div>
-                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  <span>{stats.completed} {t.completed}</span>
-                  <span>{stats.pending} {t.pending}</span>
-                  <span>{stats.scraping} {t.scraping}</span>
-                  <span>{stats.failed} {t.failed}</span>
-                </div>
+            {/* Progress Bar - Always visible */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-slate-600 dark:text-slate-300">
+                  {crawlState === 'idle' ? (language === 'zh' ? '等待中...' : 'Waiting...') : 
+                   crawlState === 'running' ? (language === 'zh' ? '爬取中...' : 'Crawling...') :
+                   crawlState === 'paused' ? (language === 'zh' ? '已暂停' : 'Paused') : crawlState}
+                </span>
+                <span className="font-medium text-indigo-600 dark:text-indigo-400">{stats.progress}%</span>
               </div>
-            )}
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+                <div className={`h-2.5 rounded-full transition-all duration-500 ${crawlState === 'running' ? 'bg-indigo-600 dark:bg-indigo-500 animate-pulse' : 'bg-indigo-400 dark:bg-indigo-400'}`} style={{ width: `${stats.progress}%` }}></div>
+              </div>
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
+                <span className={stats.completed > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''}>{stats.completed} {t.completed}</span>
+                <span className={stats.pending > 0 ? 'text-blue-600 dark:text-blue-400' : ''}>{stats.pending} {t.pending}</span>
+                <span className={stats.scraping > 0 ? 'text-amber-600 dark:text-amber-400' : ''}>{stats.scraping} {t.scraping}</span>
+                <span className={stats.failed > 0 ? 'text-red-600 dark:text-red-400' : ''}>{stats.failed} {t.failed}</span>
+              </div>
+              {/* Real-time current URL when crawling */}
+              {crawlState === 'running' && (
+                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-3 h-3 text-amber-500 animate-spin" />
+                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      {language === 'zh' ? '当前: ' : 'Current: '}
+                      {currentCrawlUrl || (language === 'zh' ? '等待...' : 'Waiting...')}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {showVisualizer && (
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
