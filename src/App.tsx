@@ -2113,21 +2113,27 @@ export default function App() {
                         </div>
                         
                         {/* 爬取结果列表 */}
-                        {adaptiveCrawlResults.results && adaptiveCrawlResults.results.length > 0 && (
+                        {adaptiveCrawlResults && (
                           <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
                             <div className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
-                              {language === 'zh' ? `爬取结果 (${adaptiveCrawlResults.results.length} 个页面)` : `Crawl Results (${adaptiveCrawlResults.results.length} pages)`}
+                              {language === 'zh' ? `爬取结果 (${adaptiveCrawlResults.results?.length || 0} 个页面)` : `Crawl Results (${adaptiveCrawlResults.results?.length || 0} pages)`}
                             </div>
-                            {adaptiveCrawlResults.results.map((item: any, idx: number) => (
-                              <div key={idx} className="p-2 bg-white dark:bg-slate-800 border border-cyan-200 dark:border-cyan-700 rounded-lg text-xs">
-                                <div className="font-medium text-cyan-600 dark:text-cyan-400 truncate">
-                                  {item.url || `Page ${idx + 1}`}
+                            {adaptiveCrawlResults.results && adaptiveCrawlResults.results.length > 0 ? (
+                              adaptiveCrawlResults.results.map((item: any, idx: number) => (
+                                <div key={idx} className="p-2 bg-white dark:bg-slate-800 border border-cyan-200 dark:border-cyan-700 rounded-lg text-xs">
+                                  <div className="font-medium text-cyan-600 dark:text-cyan-400 truncate">
+                                    {item.url || `Page ${idx + 1}`}
+                                  </div>
+                                  <div className="mt-1 text-slate-600 dark:text-slate-300 line-clamp-3 whitespace-pre-wrap">
+                                    {item.content || item.markdown || item.text || (language === 'zh' ? '无内容' : 'No content')}
+                                  </div>
                                 </div>
-                                <div className="mt-1 text-slate-600 dark:text-slate-300 line-clamp-3">
-                                  {item.content || item.markdown || item.text || (language === 'zh' ? '无内容' : 'No content')}
-                                </div>
+                              ))
+                            ) : (
+                              <div className="p-2 text-xs text-slate-500">
+                                {language === 'zh' ? '暂无内容，请检查爬取设置' : 'No content available'}
                               </div>
-                            ))}
+                            )}
                           </div>
                         )}
                       </div>
