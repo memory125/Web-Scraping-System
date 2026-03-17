@@ -511,6 +511,195 @@ export default function App() {
     addLog('success', `📄 Exported ${completed.length} results with content to JSON`);
   };
 
+  // ============ 深度爬取导出函数 ============
+  const handleExportDeepCrawlResults = (format: 'markdown' | 'excel' | 'csv' | 'json') => {
+    if (!deepCrawlResults || deepCrawlResults.length === 0) {
+      addLog('error', language === 'zh' ? '没有深度爬取结果可导出' : 'No deep crawl results to export');
+      return;
+    }
+
+    const data = deepCrawlResults.map((t: any) => ({
+      URL: t.url || '',
+      Title: t.title || t.url || '',
+      Status: t.success !== false ? 'Success' : 'Failed',
+      Content: t.content || t.markdown || t.text || '',
+    }));
+
+    if (format === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'DeepCrawl');
+      XLSX.writeFile(wb, `deep-crawl-${Date.now()}.xlsx`);
+      addLog('success', `📊 Exported ${data.length} deep crawl results to Excel`);
+    } else if (format === 'csv') {
+      const csv = '\ufeff' + Papa.unparse(data);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      downloadBlob(blob, `deep-crawl-${Date.now()}.csv`);
+      addLog('success', `📊 Exported ${data.length} deep crawl results to CSV`);
+    } else if (format === 'json') {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `deep-crawl-${Date.now()}.json`);
+      addLog('success', `📄 Exported ${data.length} deep crawl results to JSON`);
+    } else {
+      let md = '# 深度爬取结果\n\n';
+      data.forEach((item: any) => {
+        md += `## ${item.Title}\n\n`;
+        md += `**URL**: ${item.URL}\n`;
+        md += `**Status**: ${item.Status}\n\n`;
+        md += `## Content\n\n${item.Content}\n\n---\n\n`;
+      });
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+      downloadBlob(blob, `deep-crawl-${Date.now()}.md`);
+      addLog('success', `📝 Exported ${data.length} deep crawl results to Markdown`);
+    }
+  };
+
+  // ============ 自适应爬取导出函数 ============
+  const handleExportAdaptiveResults = (format: 'markdown' | 'excel' | 'csv' | 'json') => {
+    if (!adaptiveCrawlResults || !adaptiveCrawlResults.results || adaptiveCrawlResults.results.length === 0) {
+      addLog('error', language === 'zh' ? '没有自适应爬取结果可导出' : 'No adaptive crawl results to export');
+      return;
+    }
+
+    const data = adaptiveCrawlResults.results.map((item: any) => ({
+      URL: item.url || '',
+      Content: item.content || item.markdown || item.text || '',
+    }));
+
+    if (format === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Adaptive');
+      XLSX.writeFile(wb, `adaptive-crawl-${Date.now()}.xlsx`);
+      addLog('success', `📊 Exported ${data.length} adaptive results to Excel`);
+    } else if (format === 'csv') {
+      const csv = '\ufeff' + Papa.unparse(data);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      downloadBlob(blob, `adaptive-crawl-${Date.now()}.csv`);
+      addLog('success', `📊 Exported ${data.length} adaptive results to CSV`);
+    } else if (format === 'json') {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `adaptive-crawl-${Date.now()}.json`);
+      addLog('success', `📄 Exported ${data.length} adaptive results to JSON`);
+    } else {
+      let md = '# 自适应爬取结果\n\n';
+      data.forEach((item: any, idx: number) => {
+        md += `## ${item.URL || `Page ${idx + 1}`}\n\n`;
+        md += `**URL**: ${item.URL}\n\n`;
+        md += `## Content\n\n${item.Content}\n\n---\n\n`;
+      });
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+      downloadBlob(blob, `adaptive-crawl-${Date.now()}.md`);
+      addLog('success', `📝 Exported ${data.length} adaptive results to Markdown`);
+    }
+  };
+
+  // ============ 电商爬取导出函数 ============
+  const handleExportEcommerceResults = (format: 'markdown' | 'excel' | 'csv' | 'json') => {
+    const results = ecommerceResults || [];
+    if (results.length === 0) {
+      addLog('error', language === 'zh' ? '没有电商爬取结果可导出' : 'No e-commerce results to export');
+      return;
+    }
+
+    const data = results.map((p: any) => ({
+      Title: p.title || '',
+      Price: p.price || '',
+      Currency: p.currency || '',
+      Rating: p.rating || '',
+      Reviews: p.reviews || '',
+      Availability: p.availability || '',
+      URL: p.url || '',
+      Image: p.image || '',
+      Description: p.description || '',
+    }));
+
+    if (format === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Ecommerce');
+      XLSX.writeFile(wb, `ecommerce-${Date.now()}.xlsx`);
+      addLog('success', `📊 Exported ${data.length} products to Excel`);
+    } else if (format === 'csv') {
+      const csv = '\ufeff' + Papa.unparse(data);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      downloadBlob(blob, `ecommerce-${Date.now()}.csv`);
+      addLog('success', `📊 Exported ${data.length} products to CSV`);
+    } else if (format === 'json') {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `ecommerce-${Date.now()}.json`);
+      addLog('success', `📄 Exported ${data.length} products to JSON`);
+    } else {
+      let md = '# 电商商品结果\n\n';
+      data.forEach((item: any) => {
+        md += `## ${item.Title}\n\n`;
+        if (item.Price) md += `**价格**: ${item.Price} ${item.Currency}\n`;
+        if (item.Rating) md += `**评分**: ${item.Rating}\n`;
+        if (item.Reviews) md += `**评论数**: ${item.Reviews}\n`;
+        if (item.Availability) md += `**库存**: ${item.Availability}\n`;
+        if (item.URL) md += `**链接**: ${item.URL}\n`;
+        if (item.Description) md += `\n${item.Description}\n`;
+        md += `\n---\n\n`;
+      });
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+      downloadBlob(blob, `ecommerce-${Date.now()}.md`);
+      addLog('success', `📝 Exported ${data.length} products to Markdown`);
+    }
+  };
+
+  // ============ 卖家爬取导出函数 ============
+  const handleExportSellerResults = (format: 'markdown' | 'excel' | 'csv' | 'json') => {
+    const results = sellerResults || [];
+    const products = results.products || results || [];
+    if (!products || products.length === 0) {
+      addLog('error', language === 'zh' ? '没有卖家爬取结果可导出' : 'No seller results to export');
+      return;
+    }
+
+    const data = products.map((p: any) => ({
+      Title: p.title || '',
+      Price: p.price || '',
+      Currency: p.currency || '',
+      Rating: p.rating || '',
+      Reviews: p.reviews || '',
+      Sales: p.sales || '',
+      URL: p.url || '',
+      Description: p.description || '',
+    }));
+
+    if (format === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Seller');
+      XLSX.writeFile(wb, `seller-${Date.now()}.xlsx`);
+      addLog('success', `📊 Exported ${data.length} seller products to Excel`);
+    } else if (format === 'csv') {
+      const csv = '\ufeff' + Papa.unparse(data);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      downloadBlob(blob, `seller-${Date.now()}.csv`);
+      addLog('success', `📊 Exported ${data.length} seller products to CSV`);
+    } else if (format === 'json') {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `seller-${Date.now()}.json`);
+      addLog('success', `📄 Exported ${data.length} seller products to JSON`);
+    } else {
+      let md = '# 卖家商品结果\n\n';
+      data.forEach((item: any) => {
+        md += `## ${item.Title}\n\n`;
+        if (item.Price) md += `**价格**: ${item.Price} ${item.Currency}\n`;
+        if (item.Rating) md += `**评分**: ${item.Rating}\n`;
+        if (item.Reviews) md += `**评论数**: ${item.Reviews}\n`;
+        if (item.Sales) md += `**销量**: ${item.Sales}\n`;
+        if (item.URL) md += `**链接**: ${item.URL}\n`;
+        if (item.Description) md += `\n${item.Description}\n`;
+        md += `\n---\n\n`;
+      });
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+      downloadBlob(blob, `seller-${Date.now()}.md`);
+      addLog('success', `📝 Exported ${data.length} seller products to Markdown`);
+    }
+  };
+
   const handleSaveResume = () => {
     const resumeToken: ResumeToken = {
       targets: targets.filter(t => t.status === 'pending' || t.status === 'failed'),
@@ -1885,10 +2074,23 @@ export default function App() {
                     </button>
                     <button onClick={() => handleExportResultsJSON()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700 rounded-md text-xs font-medium transition-colors">
                       JSON
-                    </button>
-                  </div>
-                </div>
-              )}
+                        </button>
+                      </div>
+                      {sellerResults && sellerResults.products && sellerResults.products.length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-xs text-red-600 dark:text-red-400 mb-2">
+                            {language === 'zh' ? `爬取 ${sellerResults.products.length} 个商品` : `Crawled ${sellerResults.products.length} products`}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            <button onClick={() => handleExportSellerResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">MD</button>
+                            <button onClick={() => handleExportSellerResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                            <button onClick={() => handleExportSellerResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                            <button onClick={() => handleExportSellerResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
               {activeTab === 'queue' && (
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
@@ -2013,8 +2215,16 @@ export default function App() {
                       </button>
                     </div>
                     {deepCrawlResults.length > 0 && (
-                      <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
-                        {language === 'zh' ? `已爬取 ${deepCrawlResults.length} 个页面` : `Crawled ${deepCrawlResults.length} pages`}
+                      <div className="mt-2">
+                        <div className="text-xs text-purple-600 dark:text-purple-400 mb-2">
+                          {language === 'zh' ? `已爬取 ${deepCrawlResults.length} 个页面` : `Crawled ${deepCrawlResults.length} pages`}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <button onClick={() => handleExportDeepCrawlResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">MD</button>
+                          <button onClick={() => handleExportDeepCrawlResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                          <button onClick={() => handleExportDeepCrawlResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                          <button onClick={() => handleExportDeepCrawlResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2112,6 +2322,16 @@ export default function App() {
                           </div>
                         </div>
                         
+                        {/* 导出按钮 */}
+                        {adaptiveCrawlResults.results && adaptiveCrawlResults.results.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            <button onClick={() => handleExportAdaptiveResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">MD</button>
+                            <button onClick={() => handleExportAdaptiveResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                            <button onClick={() => handleExportAdaptiveResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                            <button onClick={() => handleExportAdaptiveResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                          </div>
+                        )}
+                        
                         {/* 爬取结果列表 */}
                         {adaptiveCrawlResults && (
                           <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
@@ -2189,8 +2409,16 @@ export default function App() {
                       </button>
                     </div>
                     {ecommerceResults.length > 0 && (
-                      <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
-                        {language === 'zh' ? `提取 ${ecommerceResults.length} 个商品` : `Extracted ${ecommerceResults.length} products`}
+                      <div className="mt-2">
+                        <div className="text-xs text-orange-600 dark:text-orange-400 mb-2">
+                          {language === 'zh' ? `提取 ${ecommerceResults.length} 个商品` : `Extracted ${ecommerceResults.length} products`}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <button onClick={() => handleExportEcommerceResults('markdown')} className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">MD</button>
+                          <button onClick={() => handleExportEcommerceResults('excel')} className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">Excel</button>
+                          <button onClick={() => handleExportEcommerceResults('csv')} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs">CSV</button>
+                          <button onClick={() => handleExportEcommerceResults('json')} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">JSON</button>
+                        </div>
                       </div>
                     )}
                   </div>
