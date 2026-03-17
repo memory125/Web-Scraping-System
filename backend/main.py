@@ -1185,6 +1185,362 @@ class EcommerceCrawlStrategy:
         }
 
 
+# ============ CAPTCHA Solving Service ============
+class CaptchaSolver:
+    """验证码解决服务 - 支持多种方案"""
+
+    # 默认配置
+    DEFAULT_OHMYCAPTCHA_URL = os.getenv("OHMYCAPTCHA_URL", "http://localhost:8000")
+    DEFAULT_OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+    @staticmethod
+    async def solve_with_ohmycaptcha(
+        image_base64: str = None,
+        image_url: str = None,
+        task_type: str = "ReCaptchaV2Task",
+        website_url: str = None,
+        website_key: str = None,
+        ohmycaptcha_url: str = None,
+    ) -> Dict[str, Any]:
+        """使用 OhMyCaptcha 自托管 API 解决验证码"""
+        url = ohmycaptcha_url or CaptchaSolver.DEFAULT_OHMYCAPTCHA_URL
+
+        try:
+            import aiohttp
+
+            # 创建任务
+            task_payload = {
+                "type": task_type,
+            }
+
+            if image_base64:
+                task_payload["image"] = image_base64
+            if image_url:
+                task_payload["imageUrl"] = image_url
+            if website_url:
+                task_payload["websiteURL"] = website_url
+            if website_key:
+                task_payload["websiteKey"] = website_key
+
+            async with aiohttp.ClientSession() as session:
+                # 提交任务
+                async with session.post(
+                    f"{url}/solve",
+                    json=task_payload,
+                    timeout=aiohttp.ClientTimeout(total=120),
+                ) as resp:
+                    result = await resp.json()
+
+                if result.get("error"):
+                    return {"success": False, "error": result.get("error")}
+
+                task_id = result.get("taskId")
+                if not task_id:
+                    return {"success": False, "error": "No task ID returned"}
+
+                # 轮询结果
+                for _ in range(60):  # 最多等待60秒
+                    await asyncio.sleep(1)
+
+                    async with session.get(
+                        f"{url}/task/{task_id}", timeout=aiohttp.ClientTimeout(total=30)
+                    ) as resp:
+                        result = await resp.json()
+
+                    if result.get("status") == "success":
+                        return {
+                            "success": True,
+                            "solution": result.get("solution", {}),
+                            "task_id": task_id,
+                        }
+                    elif result.get("status") == "failed":
+                        return {"success": False, "error": "Task failed"}
+
+                return {"success": False, "error": "Timeout"}
+
+        except Exception as e:
+            logger.warning(f"OhMyCaptcha error: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def solve_with_ollama_vision(
+        image_base64: str = None,
+        image_url: str = None,
+        model: str = "qwen2.5-vision",
+        ollama_url: str = None,
+    ) -> Dict[str, Any]:
+        """使用本地 Ollama Vision 模型识别验证码"""
+        url = ollama_url or CaptchaSolver.DEFAULT_OLLAMA_URL
+
+        try:
+            import aiohttp
+            import base64
+
+            # 如果提供的是 URL，先下载图片
+            image_data = image_base64
+            if image_url and not image_base64:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        image_url, timeout=aiohttp.ClientTimeout(total=30)
+                    ) as resp:
+                        if resp.status == 200:
+                            image_bytes = await resp.read()
+                            image_data = base64.b64encode(image_bytes).decode()
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Failed to download image: {resp.status}",
+                            }
+
+            if not image_data:
+                return {"success": False, "error": "No image provided"}
+
+            # 调用 Ollama Vision API
+            prompt = """你是一个验证码识别系统。请仔细看这张图片中的验证码内容。
+如果图片中只有验证码（字母、数字、汉字等），请直接输出验证码文字。
+如果图片是reCAPTCHA或hCaptcha的挑战图片，请说明图片中的内容（如"选择所有包含交通灯的图片"）。
+不要输出任何其他内容，只输出验证码或图片描述。"""
+
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "images": [image_data]
+                if isinstance(image_data, str)
+                else [base64.b64encode(image_data).decode()],
+                "stream": False,
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{url}/api/generate",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as resp:
+                    if resp.status == 200:
+                        result = await resp.json()
+                        return {
+                            "success": True,
+                            "solution": {"text": result.get("response", "").strip()},
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Ollama API error: {resp.status}",
+                        }
+
+        except Exception as e:
+            logger.warning(f"Ollama Vision error: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def solve_with_tesseract(
+        image_base64: str = None,
+        image_url: str = None,
+    ) -> Dict[str, Any]:
+        """使用 Tesseract OCR 识别简单验证码"""
+        try:
+            import pytesseract
+            from PIL import Image
+            import io
+            import base64
+            import aiohttp
+
+            # 如果提供的是 URL，先下载图片
+            image_data = None
+            if image_url:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        image_url, timeout=aiohttp.ClientTimeout(total=30)
+                    ) as resp:
+                        if resp.status == 200:
+                            image_data = await resp.read()
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Failed to download image: {resp.status}",
+                            }
+            elif image_base64:
+                image_data = base64.b64decode(image_base64)
+
+            if not image_data:
+                return {"success": False, "error": "No image provided"}
+
+            # 使用 PIL 处理图像
+            image = Image.open(io.BytesIO(image_data))
+
+            # 图像预处理
+            # 转为灰度
+            if image.mode != "L":
+                image = image.convert("L")
+
+            # 简单的二值化处理
+            threshold = 128
+            image = image.point(lambda x: 255 if x > threshold else 0)
+            image = image.convert("1")
+
+            # OCR 识别
+            text = pytesseract.image_to_string(image, config="--psm 7")
+            text = text.strip()
+
+            return {
+                "success": True,
+                "solution": {"text": text},
+            }
+
+        except ImportError:
+            return {"success": False, "error": "pytesseract not installed"}
+        except Exception as e:
+            logger.warning(f"Tesseract error: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def bypass_with_stealth(
+        page,
+        max_retries: int = 3,
+    ) -> Dict[str, Any]:
+        """使用增强反检测绕过验证码"""
+        try:
+            # 检测验证码
+            captcha_indicators = [
+                "#nc_1_n1z",  # 阿里滑动验证
+                ".geetest_item_wrap",  # Geetest
+                ".g-recaptcha",  # reCAPTCHA
+                ".h-captcha",  # hCaptcha
+                "[name='cf-turnstile']",  # Cloudflare Turnstile
+            ]
+
+            is_captcha = await page.evaluate(f"""() => {{
+                const selectors = {captcha_indicators};
+                return selectors.some(s => document.querySelector(s) !== null);
+            }}""")
+
+            if not is_captcha:
+                return {"bypassed": True, "method": "no_captcha"}
+
+            # 尝试各种绕过方法
+            for attempt in range(max_retries):
+                # 方法1: 等待一段时间，有时验证码会自动消失
+                await asyncio.sleep(2)
+
+                # 方法2: 尝试滚动页面
+                await page.evaluate("window.scrollTo(0, 0)")
+                await asyncio.sleep(0.5)
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(0.5)
+
+                # 方法3: 模拟鼠标移动
+                await page.mouse.move(100, 100)
+                await page.mouse.move(200, 200, steps=5)
+                await asyncio.sleep(0.5)
+
+                # 方法4: 检查验证码是否消失
+                is_still_captcha = await page.evaluate(f"""() => {{
+                    const selectors = {captcha_indicators};
+                    return selectors.some(s => document.querySelector(s) !== null);
+                }}""")
+
+                if not is_still_captcha:
+                    return {
+                        "bypassed": True,
+                        "method": f"stealth_attempt_{attempt + 1}",
+                    }
+
+            return {"bypassed": False, "method": "stealth", "attempts": max_retries}
+
+        except Exception as e:
+            logger.warning(f"Stealth bypass error: {e}")
+            return {"bypassed": False, "error": str(e)}
+
+    @staticmethod
+    async def detect_and_solve(
+        page,
+        method: str = "auto",
+        options: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
+        """自动检测验证码类型并解决"""
+        options = options or {}
+
+        # 检测验证码类型
+        captcha_type = await page.evaluate("""() => {
+            // 检测阿里滑动验证
+            if (document.querySelector('#nc_1_n1z, .nc_wrapper')) return 'aliyun_slider';
+            // 检测 Geetest
+            if (document.querySelector('.geetest_item_wrap, .geetest_panel')) return 'geetest';
+            // 检测 reCAPTCHA
+            if (document.querySelector('.g-recaptcha, [data-sitekey]')) return 'recaptcha_v2';
+            // 检测 reCAPTCHA v3
+            if (document.querySelector('[data-sitekey]')) return 'recaptcha_v3';
+            // 检测 hCaptcha
+            if (document.querySelector('.h-captcha, [id*="h-captcha"]')) return 'hcaptcha';
+            // 检测 Cloudflare Turnstile
+            if (document.querySelector('[name="cf-turnstile"], .cf-turnstile')) return 'turnstile';
+            // 检测普通图片验证码
+            if (document.querySelector('img[src*="captcha"], input[name*="captcha"]')) return 'image';
+            return null;
+        }""")
+
+        if not captcha_type:
+            return {"detected": False, "solved": False}
+
+        logger.info(f"Detected CAPTCHA type: {captcha_type}")
+
+        # 根据类型选择解决方案
+        if method == "ohmycaptcha" or (
+            method == "auto" and options.get("ohmycaptcha_url")
+        ):
+            # 获取验证码图片
+            image_data = await page.evaluate("""() => {
+                const img = document.querySelector('img[src*="captcha"], .geetest_item_img, #nc_1_n1z img');
+                if (img && img.src) return img.src;
+                return null;
+            }""")
+
+            if image_data:
+                result = await CaptchaSolver.solve_with_ohmycaptcha(
+                    image_url=image_data,
+                    task_type="ImageClassificationTask",
+                    ohmycaptcha_url=options.get("ohmycaptcha_url"),
+                )
+                return {"detected": True, "type": captcha_type, "result": result}
+
+        elif method == "ollama" or (method == "auto" and options.get("use_llm")):
+            # 使用 Vision 模型
+            image_data = await page.evaluate("""() => {
+                const img = document.querySelector('img[src*="captcha"], .geetest_item_img');
+                if (img && img.src) return img.src;
+                return null;
+            }""")
+
+            if image_data:
+                result = await CaptchaSolver.solve_with_ollama_vision(
+                    image_url=image_data,
+                    model=options.get("vision_model", "qwen2.5-vision"),
+                )
+                return {"detected": True, "type": captcha_type, "result": result}
+
+        elif method == "tesseract":
+            image_data = await page.evaluate("""() => {
+                const img = document.querySelector('img[src*="captcha"]');
+                if (img && img.src) return img.src;
+                return null;
+            }""")
+
+            if image_data:
+                result = await CaptchaSolver.solve_with_tesseract(image_url=image_data)
+                return {"detected": True, "type": captcha_type, "result": result}
+
+        elif method == "stealth":
+            result = await CaptchaSolver.bypass_with_stealth(page)
+            return {"detected": True, "type": captcha_type, "result": result}
+
+        return {
+            "detected": True,
+            "type": captcha_type,
+            "solved": False,
+            "error": "No suitable solver",
+        }
+
+
 # Global cookie storage
 cookies_store: Dict[str, List[Dict[str, str]]] = {}
 
@@ -1484,12 +1840,27 @@ class EcommerceExtractRequest(BaseModel):
     use_stealth: bool = True  # Use stealth mode for anti-bot (Amazon, eBay, etc.)
     use_proxy: bool = False  # Use proxy
     proxy_url: Optional[str] = None
+    proxy_username: Optional[str] = None  # Proxy authentication
+    proxy_password: Optional[str] = None
     scroll_pages: int = 1  # Number of pages to scroll through
     # Playwright option for JavaScript-rendered pages (Taobao, Tmall, etc.)
     use_playwright: bool = True  # Use Playwright for better JS handling
     # CapSolver CAPTCHA integration
     use_capsolver: bool = False  # Use CapSolver to solve CAPTCHA
     capsolver_api_key: Optional[str] = None  # CapSolver API key
+    # OhMyCaptcha (self-hosted)
+    use_ohmycaptcha: bool = False  # Use OhMyCaptcha self-hosted
+    ohmycaptcha_url: Optional[str] = None  # OhMyCaptcha API URL
+    # Ollama Vision
+    use_ollama_vision: bool = False  # Use Ollama for CAPTCHA
+    vision_model: str = "qwen2.5-vision"  # Vision model name
+    # Browser options
+    viewport_width: int = 1920
+    viewport_height: int = 1080
+    page_timeout: int = 60000  # Page load timeout in ms
+    # Anti-detection options
+    random_user_agent: bool = True  # Randomize user agent
+    human_behavior: bool = True  # Simulate human scrolling/clicking
 
 
 class EcommerceResult(BaseModel):
@@ -1519,9 +1890,22 @@ class EcommerceSellerCrawlRequest(BaseModel):
     use_stealth: bool = True  # Use stealth mode for anti-bot
     use_proxy: bool = False  # Use proxy
     proxy_url: Optional[str] = None
+    proxy_username: Optional[str] = None  # Proxy authentication
+    proxy_password: Optional[str] = None
     # CapSolver CAPTCHA integration
     use_capsolver: bool = False  # Use CapSolver to solve CAPTCHA
     capsolver_api_key: Optional[str] = None  # CapSolver API key
+    # OhMyCaptcha (self-hosted)
+    use_ohmycaptcha: bool = False  # Use OhMyCaptcha self-hosted
+    ohmycaptcha_url: Optional[str] = None  # OhMyCaptcha API URL
+    # Ollama Vision
+    use_ollama_vision: bool = False  # Use Ollama for CAPTCHA
+    vision_model: str = "qwen2.5-vision"  # Vision model name
+    # Browser options
+    viewport_width: int = 1920
+    viewport_height: int = 1080
+    page_timeout: int = 60000  # Page load timeout in ms
+    scroll_pages: int = 3  # Number of pages to scroll
 
 
 class EcommerceSellerResult(BaseModel):
@@ -1886,6 +2270,181 @@ async def validate_cookies(request: CookieRequest):
         "message": "所有必需 cookies 已提供"
         if not missing
         else f"缺少: {', '.join(missing)}",
+    }
+
+
+# ============ CAPTCHA Solving API Endpoints ============
+
+
+class CaptchaSolveRequest(BaseModel):
+    image_base64: Optional[str] = None
+    image_url: Optional[str] = None
+    task_type: str = "ReCaptchaV2Task"
+    website_url: Optional[str] = None
+    website_key: Optional[str] = None
+
+
+class CaptchaOllamaRequest(BaseModel):
+    image_base64: Optional[str] = None
+    image_url: Optional[str] = None
+    model: str = "qwen2.5-vision"
+
+
+class CaptchaTesseractRequest(BaseModel):
+    image_base64: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+@app.post("/captcha/ohmycaptcha")
+async def solve_with_ohmycaptcha(request: CaptchaSolveRequest):
+    """使用 OhMyCaptcha 自托管 API 解决验证码
+    需要先部署 OhMyCaptcha 服务: https://github.com/shenhao-stu/ohmycaptcha
+    """
+    result = await CaptchaSolver.solve_with_ohmycaptcha(
+        image_base64=request.image_base64,
+        image_url=request.image_url,
+        task_type=request.task_type,
+        website_url=request.website_url,
+        website_key=request.website_key,
+    )
+    return result
+
+
+@app.post("/captcha/ollama")
+async def solve_with_ollama_vision(request: CaptchaOllamaRequest):
+    """使用本地 Ollama Vision 模型识别验证码
+    需要安装支持 vision 的模型: ollama pull qwen2.5-vision
+    """
+    result = await CaptchaSolver.solve_with_ollama_vision(
+        image_base64=request.image_base64,
+        image_url=request.image_url,
+        model=request.model,
+    )
+    return result
+
+
+@app.post("/captcha/tesseract")
+async def solve_with_tesseract(request: CaptchaTesseractRequest):
+    """使用 Tesseract OCR 识别简单验证码
+    需要安装: pip install pytesseract
+    """
+    result = await CaptchaSolver.solve_with_tesseract(
+        image_base64=request.image_base64,
+        image_url=request.image_url,
+    )
+    return result
+
+
+@app.get("/captcha/status")
+async def get_captcha_status():
+    """获取验证码解决服务状态"""
+    status = {
+        "ohmycaptcha": {
+            "available": False,
+            "url": CaptchaSolver.DEFAULT_OHMYCAPTCHA_URL,
+        },
+        "ollama_vision": {
+            "available": False,
+            "url": CaptchaSolver.DEFAULT_OLLAMA_URL,
+            "models": [],
+        },
+        "tesseract": {
+            "available": False,
+        },
+    }
+
+    # 检查 OhMyCaptcha
+    try:
+        import aiohttp
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{CaptchaSolver.DEFAULT_OHMYCAPTCHA_URL}/health",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                status["ohmycaptcha"]["available"] = resp.status == 200
+    except:
+        pass
+
+    # 检查 Ollama Vision
+    try:
+        import aiohttp
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{CaptchaSolver.DEFAULT_OLLAMA_URL}/api/tags",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    vision_models = [
+                        m["name"]
+                        for m in data.get("models", [])
+                        if "vision" in m.get("name", "").lower()
+                        or "vl" in m.get("name", "").lower()
+                    ]
+                    status["ollama_vision"]["available"] = len(vision_models) > 0
+                    status["ollama_vision"]["models"] = vision_models
+    except:
+        pass
+
+    # 检查 Tesseract
+    try:
+        import pytesseract
+
+        status["tesseract"]["available"] = True
+    except ImportError:
+        pass
+
+    return status
+
+
+@app.get("/captcha/guide")
+async def get_captcha_guide():
+    """获取验证码解决指南"""
+    return {
+        "methods": {
+            "ohmycaptcha": {
+                "name": "OhMyCaptcha",
+                "description": "自托管 YesCaptcha 风格验证码解决服务",
+                "url": "https://github.com/shenhao-stu/ohmycaptcha",
+                "deployment": "Docker: docker run -p 8000:8000 shenhao/ohmycaptcha",
+                "pros": [
+                    "支持多种验证码类型",
+                    "自托管无需付费",
+                    "支持 reCAPTCHA/hCaptcha/Turnstile",
+                ],
+                "cons": ["需要自托管部署"],
+            },
+            "ollama_vision": {
+                "name": "Ollama Vision",
+                "description": "使用本地大模型识别验证码",
+                "url": "https://ollama.com/library",
+                "deployment": "ollama pull qwen2.5-vision",
+                "pros": ["免费", "本地运行无需联网", "支持图像理解"],
+                "cons": ["需要高显存GPU", "对复杂验证码效果一般"],
+            },
+            "tesseract": {
+                "name": "Tesseract OCR",
+                "description": "开源 OCR 引擎",
+                "url": "https://github.com/tesseract-ocr/tesseract",
+                "deployment": "pip install pytesseract && 安装 tesseract 程序",
+                "pros": ["完全免费", "无需GPU"],
+                "cons": ["对复杂验证码效果差", "需要图像预处理"],
+            },
+            "stealth": {
+                "name": "Stealth 绕过",
+                "description": "通过模拟人类行为绕过验证码",
+                "pros": ["无需额外服务", "部分验证码可自动消失"],
+                "cons": ["不是所有验证码都能绕过"],
+            },
+        },
+        "recommended": {
+            "简单验证码": "tesseract",
+            "中等验证码": "ollama_vision",
+            "复杂验证码": "ohmycaptcha",
+            "滑动验证码": "ohmycaptcha (专用任务类型)",
+        },
     }
 
 
