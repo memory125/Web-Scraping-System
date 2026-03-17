@@ -45,6 +45,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logFilter, setLogFilter] = useState<'all' | 'debug' | 'info' | 'success' | 'warning' | 'error'>('all');
   const [crawlState, setCrawlState] = useState<CrawlState>('idle');
   const [currentCrawlUrl, setCurrentCrawlUrl] = useState('');
   const [newUrl, setNewUrl] = useState('');
@@ -259,6 +260,9 @@ export default function App() {
       message
     }, ...prev].slice(0, 500));
   };
+
+  const addDebugLog = (message: string) => addLog('debug', message);
+  const addWarningLog = (message: string) => addLog('warning', message);
 
   const saveToHistory = (name?: string) => {
     const completed = targets.filter(t => t.status === 'completed');
@@ -1407,10 +1411,10 @@ export default function App() {
         const updated = current.map(t => {
           if (t.id === target.id) {
             if (result.error) {
-              addLog('error', `Failed: ${t.url} - ${result.error}`);
+              addLog('error', `❌ Failed: ${t.url} | Error: ${result.error}`);
               return { ...t, status: 'failed' as const, error: result.error };
             } else {
-              addLog('success', `Completed: ${t.url} (${result.wordCount} words)`);
+              addLog('success', `✅ Completed: ${t.url} | Words: ${result.wordCount} | Images: ${result.images?.length || 0} | Links: ${result.links?.length || 0}`);
               return {
                 ...t,
                 status: 'completed' as const,
@@ -1452,7 +1456,7 @@ export default function App() {
         return updated;
       });
     } catch (err: any) {
-      addLog('error', `Error crawling ${target.url}: ${err.message}`);
+      addLog('error', `💥 Exception while crawling ${target.url}: ${err.message}`);
       setTargets(current => current.map(t => {
         if (t.id === target.id) {
           return { ...t, status: 'failed' as const, error: err.message };
@@ -3289,22 +3293,48 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden flex flex-col h-[400px] md:h-auto">
+              <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden flex flex-col h-[400px] md:h-auto">
               <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
                 <h2 className="font-semibold text-slate-200 flex items-center gap-2 text-sm">{t.logs}</h2>
-                <span className="flex h-2 w-2 relative">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${crawlState === 'running' ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${crawlState === 'running' ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={logFilter} 
+                    onChange={(e) => setLogFilter(e.target.value as any)}
+                    className="bg-slate-800 text-slate-300 text-xs px-2 py-1 rounded border border-slate-700"
+                  >
+                    <option value="all">{language === 'zh' ? '全部' : 'All'}</option>
+                    <option value="debug">DEBUG</option>
+                    <option value="info">INFO</option>
+                    <option value="success">SUCCESS</option>
+                    <option value="warning">WARNING</option>
+                    <option value="error">ERROR</option>
+                  </select>
+                  <button onClick={() => setLogs([])} className="text-slate-500 hover:text-slate-300 text-xs" title={language === 'zh' ? '清空日志' : 'Clear logs'}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-auto p-4 space-y-2 font-mono text-xs">
-                {logs.length === 0 ? (
+                {logs.filter(l => logFilter === 'all' || l.type === logFilter).length === 0 ? (
                   <div className="text-slate-600 text-center mt-10">System idle...</div>
                 ) : (
-                  logs.map((log) => (
+                  logs.filter(l => logFilter === 'all' || l.type === logFilter).map((log) => (
                     <div key={log.id} className="flex gap-2">
                       <span className="text-slate-500 shrink-0">{new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}</span>
-                      <span className={`${log.type === 'info' ? 'text-blue-400' : ''} ${log.type === 'success' ? 'text-emerald-400' : ''} ${log.type === 'error' ? 'text-rose-400' : ''}`}>
+                      <span className={`shrink-0 uppercase text-[10px] font-bold ${
+                        log.type === 'debug' ? 'text-slate-500' : 
+                        log.type === 'info' ? 'text-blue-400' : 
+                        log.type === 'success' ? 'text-emerald-400' : 
+                        log.type === 'warning' ? 'text-amber-400' : 
+                        log.type === 'error' ? 'text-rose-400' : ''
+                      }`}>[{log.type}]</span>
+                      <span className={`${
+                        log.type === 'debug' ? 'text-slate-400' : 
+                        log.type === 'info' ? 'text-blue-400' : 
+                        log.type === 'success' ? 'text-emerald-400' : 
+                        log.type === 'warning' ? 'text-amber-400' : 
+                        log.type === 'error' ? 'text-rose-400' : ''
+                      }`}>
                         {log.message}
                       </span>
                     </div>

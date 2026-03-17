@@ -129,7 +129,7 @@ export interface AppConfig {
 export interface LogEntry {
   id: string;
   timestamp: string;
-  type: 'info' | 'success' | 'error';
+  type: 'debug' | 'info' | 'success' | 'warning' | 'error';
   message: string;
 }
 
