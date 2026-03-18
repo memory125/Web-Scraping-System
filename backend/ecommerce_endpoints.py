@@ -966,6 +966,11 @@ class OptimizedTmallRequest(BaseModel):
     # 虚拟滚动 (官方文档: Virtual Scroll)
     virtual_scroll: bool = Field(default=True, description="启用虚拟滚动处理")
 
+    # 懒加载处理 (官方文档: Lazy Loading)
+    wait_for_images: bool = Field(default=True, description="等待图片加载完成")
+    scan_full_page: bool = Field(default=True, description="全页面扫描触发懒加载")
+    scroll_delay: float = Field(default=0.5, description="滚动延迟(秒)")
+
     # 其他
     extract_products: bool = Field(default=False)
     verbose: bool = Field(default=False)
@@ -1182,6 +1187,10 @@ async def crawl_tmall_v2(request: OptimizedTmallRequest):
             "override_navigator": request.override_navigator,
             "remove_overlay_elements": True,
             "delay_before_return_html": strategy.get("delay_before_return_html", 3.0),
+            # Lazy Loading配置 (官方文档: Lazy Loading)
+            "wait_for_images": request.wait_for_images,
+            "scan_full_page": request.scan_full_page,
+            "scroll_delay": request.scroll_delay,
         }
 
         # 添加代理配置
@@ -1576,19 +1585,23 @@ async def crawl_jd(request: OptimizedTmallRequest):
     - 需要登录cookies才能查看完整内容
     - 反爬虫检测较强 (京东安全系统)
     - 使用虚拟滚动加载产品列表
-    - 大量使用懒加载
+    - 大量使用懒加载图片
 
-    基于官方文档的功能 (Adaptive Strategies & E-commerce):
-    - Virtual Scroll - 处理京东的虚拟滚动产品列表
-    - 反爬虫检测与重试 (Anti-Bot & Fallback)
-    - 代理列表轮换 (Proxy & Security)
-    - Hooks生命周期管理 (Hooks & Auth)
-    - 深度挖掘支持 (Deep Crawling)
-    - 电商专用Adaptive配置:
-      * confidence_threshold=0.7
-      * max_pages=20
-      * top_k_links=2
-      * min_gain_threshold=0.1
+    基于官方文档的功能:
+    1. Virtual Scroll - 处理京东的虚拟滚动产品列表
+    2. Lazy Loading (官方文档) - 处理京东懒加载图片:
+       - wait_for_images=True: 等待图片加载完成
+       - scan_full_page=True: 全页面扫描触发懒加载
+       - scroll_delay=0.5: 滚动延迟
+    3. 反爬虫检测与重试 (Anti-Bot & Fallback)
+    4. 代理列表轮换 (Proxy & Security)
+    5. Hooks生命周期管理 (Hooks & Auth)
+    6. 深度挖掘支持 (Deep Crawling)
+    7. 电商专用Adaptive配置:
+       - confidence_threshold=0.7
+       - max_pages=20
+       - top_k_links=2
+       - min_gain_threshold=0.1
 
     使用示例:
     ```json
@@ -1596,6 +1609,9 @@ async def crawl_jd(request: OptimizedTmallRequest):
         "urls": ["https://mall.jd.com/index-1000000127.html"],
         "mode": "smart",
         "virtual_scroll": true,
+        "wait_for_images": true,
+        "scan_full_page": true,
+        "scroll_delay": 0.5,
         "max_scroll_steps": 15,
         "proxy_list": ["http://user:pass@gateway:port"],
         "cookies": [{"name": "cookie", "value": "xxx", "domain": ".jd.com"}]
