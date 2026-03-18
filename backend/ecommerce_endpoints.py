@@ -1574,21 +1574,31 @@ async def crawl_jd(request: OptimizedTmallRequest):
     京东特点:
     - 需要中国IP代理才能访问
     - 需要登录cookies才能查看完整内容
-    - 反爬虫检测较强
+    - 反爬虫检测较强 (京东安全系统)
+    - 使用虚拟滚动加载产品列表
+    - 大量使用懒加载
 
-    基于官方文档的功能:
+    基于官方文档的功能 (Adaptive Strategies & E-commerce):
     - Virtual Scroll - 处理京东的虚拟滚动产品列表
-    - 反爬虫检测与重试
-    - 代理列表轮换
-    - Hooks生命周期管理
-    - 深度挖掘支持
+    - 反爬虫检测与重试 (Anti-Bot & Fallback)
+    - 代理列表轮换 (Proxy & Security)
+    - Hooks生命周期管理 (Hooks & Auth)
+    - 深度挖掘支持 (Deep Crawling)
+    - 电商专用Adaptive配置:
+      * confidence_threshold=0.7
+      * max_pages=20
+      * top_k_links=2
+      * min_gain_threshold=0.1
 
     使用示例:
     ```json
     {
         "urls": ["https://mall.jd.com/index-1000000127.html"],
         "mode": "smart",
-        "proxy_list": ["http://user:pass@gateway:port"]
+        "virtual_scroll": true,
+        "max_scroll_steps": 15,
+        "proxy_list": ["http://user:pass@gateway:port"],
+        "cookies": [{"name": "cookie", "value": "xxx", "domain": ".jd.com"}]
     }
     ```
     """
