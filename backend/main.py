@@ -25,6 +25,13 @@ from bs4 import BeautifulSoup
 
 from dotenv import load_dotenv
 from modules.config import LLM_CONFIG, set_llm_status, get_llm_status
+# 集成专门的电商爬虫接口
+try:
+    from ecommerce_endpoints import router as ecommerce_router
+    print("[OK] E-commerce router imported successfully")
+except Exception as e:
+    print(f"[WARN] Could not import e-commerce router: {e}")
+    ecommerce_router = None
 
 load_dotenv()
 
@@ -827,6 +834,15 @@ profiles_dir = "./browser_profiles"
 
 app = FastAPI(title="Crawl4AI API", version="1.0.0", lifespan=lifespan)
 
+
+# Register specialized e-commerce routers
+try:
+    from ecommerce_endpoints import router as ecommerce_router
+    app.include_router(ecommerce_router, prefix="/crawl", tags=["E-commerce Crawlers"])
+    print("E-commerce routers registered successfully")
+except ImportError as e:
+    print("Skipping e-commerce routers:", str(e))
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -957,8 +973,11 @@ class EcommerceCrawlStrategy:
             "wait_for": "networkidle",
             "scroll_count": 3,
             "stealth": True,
+            "flatten_shadow_dom": True,
+            "cache_mode": "BYPASS",
             "locale": "zh-CN",
             "timezone_id": "Asia/Shanghai",
+            "geolocation": {"latitude": 31.2304, "longitude": 121.4737},
             "headers": {
                 "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -969,33 +988,10 @@ class EcommerceCrawlStrategy:
                 "price": ".price, .item-price, .productPrice",
                 "image": "img.pic-img, img[itemprop='image'], .productImg img",
                 "shop_name": ".shop-name, .shop-title, .shop-header-title",
+                "location": ".location",
+                "sales": ".sales-count",
             },
-            "suggestion": "需要登录cookies、住宅代理、CapSolver API，设置中国时区",
-        },
-        "tmall": {
-            "crawl_method": "playwright",
-            "anti_bot_level": "extreme",
-            "requires_cookies": True,
-            "requires_proxy": True,
-            "requires_capsolver": True,
-            "timeout": 90000,
-            "wait_for": "networkidle",
-            "scroll_count": 3,
-            "stealth": True,
-            "locale": "zh-CN",
-            "timezone_id": "Asia/Shanghai",
-            "headers": {
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            },
-            "selectors": {
-                "items": ".product, .product-item, .goods-list-v2 .item",
-                "title": ".productTitle, .product-title, h3",
-                "price": ".productPrice, .price, .tm-price",
-                "image": ".productImg img, .product-img img",
-                "shop_name": ".shop-name, .shopHeader-name, .shop-title",
-            },
-            "suggestion": "需要登录cookies、住宅代理、CapSolver API，设置中国时区",
+            "suggestion": "需要登录 cookies、住宅代理、支持滑动验证码处理，设置中国时区",
         },
         "1688": {
             "crawl_method": "playwright",
@@ -1007,6 +1003,9 @@ class EcommerceCrawlStrategy:
             "wait_for": "networkidle",
             "scroll_count": 2,
             "stealth": True,
+            "magic": True,
+            "flatten_shadow_dom": True,
+            "cache_mode": "BYPASS",
             "selectors": {
                 "items": ".offer-list .offer-item, .product-item",
                 "title": ".title, .offer-title",
@@ -1028,6 +1027,8 @@ class EcommerceCrawlStrategy:
             "scroll_count": 2,
             "stealth": True,
             "magic": True,
+            "flatten_shadow_dom": True,
+            "cache_mode": "BYPASS",
             "locale": "en-US",
             "timezone_id": "America/New_York",
             "geolocation": {"latitude": 40.7128, "longitude": -74.0060},
@@ -1041,8 +1042,69 @@ class EcommerceCrawlStrategy:
                 "price": ".a-price .a-offscreen, .a-price-whole",
                 "image": ".s-image, .a-dynamic-image",
                 "rating": ".a-icon-alt, .a-icon-star-small",
+                "asin": ".s-asin",
+                "link": "h2 a",
             },
-            "suggestion": "建议添加Amazon cookies，使用stealth模式，设置US locale",
+            "suggestion": "使用 BYPASS 缓存模式，启用 shadow dom 展开，建议添加 Amazon cookies",
+        },
+        "taobao": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "extreme",
+            "requires_cookies": True,
+            "requires_proxy": True,
+            "requires_capsolver": True,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 3,
+            "stealth": True,
+            "flatten_shadow_dom": True,
+            "cache_mode": "BYPASS",
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
+            "geolocation": {"latitude": 31.2304, "longitude": 121.4737},
+            "headers": {
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            },
+            "selectors": {
+                "items": ".item, .shop-item, .goods-item, .product-item",
+                "title": ".title, .item-title, h3, .product-title",
+                "price": ".price, .item-price, .productPrice",
+                "image": "img.pic-img, img[itemprop='image'], .productImg img",
+                "shop_name": ".shop-name, .shop-title, .shop-header-title",
+                "location": ".location",
+                "sales": ".sales-count",
+            },
+            "slider_captcha_support": True,
+            "suggestion": "需要登录 cookies、住宅代理、支持滑动验证码处理，设置中国时区",
+        },
+        "tmall": {
+            "crawl_method": "playwright",
+            "anti_bot_level": "extreme",
+            "requires_cookies": True,
+            "requires_proxy": True,
+            "requires_capsolver": True,
+            "timeout": 90000,
+            "wait_for": "networkidle",
+            "scroll_count": 3,
+            "stealth": True,
+            "flatten_shadow_dom": True,
+            "cache_mode": "BYPASS",
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
+            "headers": {
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            },
+            "selectors": {
+                "items": ".product, .product-item, .goods-list-v2 .item",
+                "title": ".productTitle, .product-title, h3",
+                "price": ".productPrice, .price, .tm-price",
+                "image": ".productImg img, .product-img img",
+                "shop_name": ".shop-name, .shopHeader-name, .shop-title",
+            },
+            "slider_captcha_support": True,
+            "suggestion": "需要登录 cookies、住宅代理、支持滑动验证码处理，设置中国时区",
         },
         "ebay": {
             "crawl_method": "crawl4ai",
@@ -2231,6 +2293,12 @@ class CrawlRequest(BaseModel):
         "container_height"  # container_height, page_height, or pixel int
     )
     virtual_scroll_wait: float = 0.5  # Wait time after each scroll
+    # Shadow DOM support
+    flatten_shadow_dom: bool = True  # Flatten Shadow DOM for content extraction
+    # Cache mode support
+    cache_mode: str = (
+        "BYPASS"  # BYPASS, DEFAULT, FORCE_CACHE, NO_CACHE, WRITE_ONLY, READ_ONLY
+    )
     # Network & Console Capture
     capture_network_requests: bool = False
     capture_console_messages: bool = False
@@ -2557,6 +2625,77 @@ class EcommerceSellerResult(BaseModel):
     error: Optional[str] = None
 
 
+class EcommerceEnhancedRequest(BaseModel):
+    """增强型电商爬取请求 - 支持所有新参数"""
+
+    url: str
+    platform: Optional[str] = None
+    cache_mode: str = "BYPASS"
+    flatten_shadow_dom: bool = True
+    magic: bool = True
+    simulate_user: bool = True
+    override_navigator: bool = True
+    scroll_pages: int = 3
+    wait_for: Optional[str] = None
+    page_timeout: int = 60000
+    js_code: Optional[List[str]] = None
+    screenshot: bool = False
+
+
+class EnhancedEcommerceResult(BaseModel):
+    """增强型电商爬取结果"""
+
+    success: bool
+    url: str
+    platform: str
+    markdown: Optional[str] = None
+    html: Optional[str] = None
+    links: Optional[List[str]] = None
+    images: Optional[List[str]] = None
+    config_used: Optional[Dict[str, Any]] = None
+    flatten_shadow_dom: Optional[bool] = None
+    cache_mode: Optional[str] = None
+    magic_enabled: Optional[bool] = None
+    crawl_stats: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class EnhancedCrawlResult(BaseModel):
+    """增强型爬取结果，包含所有配置参数"""
+
+    success: bool
+    url: str
+    platform: Optional[str] = None
+    markdown: Optional[str] = None
+    html: Optional[str] = None
+    links: Optional[List[str]] = None
+    images: Optional[List[str]] = None
+    # Enhanced configuration
+    config_used: Optional[Dict[str, Any]] = None
+    flatten_shadow_dom: Optional[bool] = None
+    cache_mode: Optional[str] = None
+    js_executed: Optional[List[str]] = None
+    virtual_scroll_used: Optional[bool] = None
+    # Anti-bot stats
+    magic_enabled: Optional[bool] = None
+    simulate_user: Optional[bool] = None
+    user_agent_used: Optional[str] = None
+    # Metadata
+    crawl_stats: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class IntellligentExtractResult(BaseModel):
+    """智能提取结果 - 基于文本分析"""
+
+    success: bool
+    platform: Optional[str] = None
+    page_type: Optional[str] = None  # product, login, home, unknown
+    detected_info: Optional[Dict[str, Any]] = None
+    requires_login: bool = False
+    message: str = ""
+
+
 class BrowserRequest(BaseModel):
     url: str
     viewport_width: int = 1280
@@ -2616,27 +2755,65 @@ async def get_ecommerce_strategy(
     url: str, has_cookies: bool = False, has_proxy: bool = False
 ):
     """获取电商爬虫策略建议
-    - 根据URL自动检测平台
+    - 根据 URL 自动检测平台
     - 返回最佳爬虫方法和所需参数
-    - 提示是否需要cookies、代理、CapSolver
+    - 提示是否需要 cookies、代理、CapSolver
+    - 包含增强参数：flatten_shadow_dom, cache_mode, js_code_before_wait
     """
     strategy = EcommerceCrawlStrategy.get_strategy(url, has_cookies, has_proxy)
-    return strategy
+    enhanced_strategy = {
+        **strategy,
+        "enhanced_config": {
+            "flatten_shadow_dom": True,
+            "cache_mode": strategy.get("platform", "amazon") == "amazon"
+            and "BYPASS"
+            or "DEFAULT",
+            "js_code_before_wait": [
+                "() => { window.__crawl_timestamp__ = Date.now(); }"
+            ],
+            "virtual_scroll_support": strategy.get("platform")
+            in ["twitter", "instagram", "taobao"],
+        },
+        "recommendations": {
+            "magic_mode": True,
+            "simulate_user": True,
+            "override_navigator": True,
+            "virtual_scroll": strategy.get("scroll_count", 0) > 1,
+        },
+    }
+    return enhanced_strategy
 
 
 @app.get("/crawl/ecommerce/platforms")
 async def get_supported_platforms():
-    """获取支持的电商平台列表和配置"""
+    """获取支持的电商平台列表和配置
+    - 包含增强配置参数
+    - 显示每个平台的详细设置
+    """
     platforms = {}
     for name, config in EcommerceCrawlStrategy.PLATFORM_CONFIGS.items():
-        platforms[name] = {
+        enhanced_config = {
             "crawl_method": config.get("crawl_method"),
             "anti_bot_level": config.get("anti_bot_level"),
             "requires_cookies": config.get("requires_cookies"),
             "requires_proxy": config.get("requires_proxy"),
             "requires_capsolver": config.get("requires_capsolver"),
             "suggestion": config.get("suggestion"),
+            # 增强参数
+            "flatten_shadow_dom": config.get("flatten_shadow_dom", True),
+            "cache_mode": config.get(
+                "cache_mode", "BYPASS" if name == "amazon" else "DEFAULT"
+            ),
+            "virtual_scroll_support": name
+            in ["taobao", "twitter", "instagram", "amazon"],
+            "advanced_features": {
+                "magic_mode": config.get("magic", True),
+                "simulate_user": True,
+                "override_navigator": True,
+                "scroll_count": config.get("scroll_count", 2),
+            },
         }
+        platforms[name] = enhanced_config
     return platforms
 
 
@@ -2753,6 +2930,34 @@ PLATFORM_COOKIE_GUIDE = {
         "instructions": {
             "chrome": "1. 登录京东 (www.jd.com)\n2. 按 F12\n3. Application → Cookies → jd.com\n4. 复制 pt_key, pt_pin 等",
         },
+    },
+    "tmall": {
+        "crawl_method": "playwright",
+        "anti_bot_level": "extreme",
+        "requires_cookies": True,
+        "requires_proxy": True,
+        "requires_capsolver": True,
+        "timeout": 90000,
+        "wait_for": "networkidle",
+        "scroll_count": 3,
+        "stealth": True,
+        "flatten_shadow_dom": True,
+        "cache_mode": "BYPASS",
+        "locale": "zh-CN",
+        "timezone_id": "Asia/Shanghai",
+        "headers": {
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        },
+        "selectors": {
+            "items": ".product, .product-item, .goods-list-v2 .item",
+            "title": ".productTitle, .product-title, h3",
+            "price": ".productPrice, .price, .tm-price",
+            "image": ".productImg img, .product-img img",
+            "shop_name": ".shop-name, .shopHeader-name, .shop-title",
+        },
+        "slider_captcha_support": True,
+        "suggestion": "需要登录 cookies、住宅代理、支持滑动验证码处理，设置中国时区",
     },
     "1688": {
         "name": "1688",
@@ -3083,6 +3288,194 @@ async def auto_fetch_cookies(request: AutoCookieFetchRequest):
     except Exception as e:
         logger.error(f"Auto cookie fetch error: {e}")
         return {"success": False, "error": str(e)}
+
+
+class TmallLoginRequest(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    proxy_url: Optional[str] = None
+    use_china_proxy: bool = True
+    headless: bool = False
+    captcha_method: str = "auto"
+
+
+@app.post("/cookies/fetch/tmall")
+async def fetch_tmall_cookies(request: TmallLoginRequest):
+    """专门用于天猫/淘宝登录并获取cookies - 集成滑动验证码处理"""
+    try:
+        from playwright.async_api import async_playwright
+
+        login_url = "https://login.tmall.com/"
+
+        async with async_playwright() as p:
+            browser_args = [
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ]
+
+            proxy_config = None
+            if request.proxy_url:
+                proxy_config = {"server": request.proxy_url}
+            elif request.use_china_proxy:
+                china_proxies = os.getenv("CHINA_PROXY", "").split(",")
+                if china_proxies and china_proxies[0]:
+                    import random
+
+                    request.proxy_url = random.choice(
+                        [p for p in china_proxies if p.strip()]
+                    )
+                    proxy_config = {"server": request.proxy_url}
+                    logger.info(f"Using China proxy: {request.proxy_url}")
+
+            browser = await p.chromium.launch(
+                headless=request.headless,
+                args=browser_args,
+                proxy=proxy_config,
+            )
+
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                locale="zh-CN",
+                timezone_id="Asia/Shanghai",
+                permissions=["geolocation"],
+                geolocation={"latitude": 31.2304, "longitude": 121.4737},
+            )
+
+            page = await context.new_page()
+
+            await page.goto(login_url, wait_until="networkidle", timeout=60000)
+
+            if request.username and request.password:
+                try:
+                    await page.fill("#fm-login-id", request.username, timeout=5000)
+                    await page.wait_for_timeout(500)
+                    await page.fill("#password", request.password, timeout=5000)
+                    await page.wait_for_timeout(500)
+                    await page.click("#loginSubmit", timeout=5000)
+                except Exception as e:
+                    logger.warning(f"Auto fill failed: {e}")
+
+            await page.wait_for_timeout(3000)
+
+            for attempt in range(30):
+                is_login = await page.evaluate("""() => {
+                    return document.cookie.includes('_tb_token_') || 
+                           document.cookie.includes('cookie2') ||
+                           document.cookie.includes('t=');
+                }""")
+
+                if is_login:
+                    break
+
+                has_slider = await page.query_selector("#nc_1_n1z, .nc_wrapper")
+                if has_slider:
+                    logger.info(f"Detected slider captcha, attempt {attempt + 1}")
+
+                    if request.captcha_method == "auto":
+                        try:
+                            await page.evaluate("""() => {
+                                const btn = document.querySelector('#nc_1_n1z + div .nc_iconfont.btn_ok');
+                                if (btn) {
+                                    btn.click();
+                                    return;
+                                }
+                                const slider = document.querySelector('#nc_1_n1z');
+                                if (slider) {
+                                    slider.parentElement.querySelector('.nc_iconfont.btn_ok')?.click();
+                                }
+                            }""")
+                        except:
+                            pass
+
+                    await page.wait_for_timeout(2000)
+
+                await page.wait_for_timeout(2000)
+
+            await page.wait_for_timeout(5000)
+
+            all_cookies = await context.cookies()
+
+            tmall_cookies = []
+            domains = [".tmall.com", "tmall.com", ".taobao.com", "taobao.com"]
+            for cookie in all_cookies:
+                cookie_domain = cookie.get("domain", "")
+                if any(
+                    d.replace(".", "") in cookie_domain.replace(".", "")
+                    for d in domains
+                    if d
+                ):
+                    tmall_cookies.append(
+                        {
+                            "name": cookie.get("name"),
+                            "value": cookie.get("value"),
+                            "domain": cookie.get("domain"),
+                            "path": cookie.get("path", "/"),
+                        }
+                    )
+
+            await browser.close()
+
+            if tmall_cookies:
+                cookies_store[".tmall.com"] = tmall_cookies
+                cookies_store[".taobao.com"] = tmall_cookies
+
+                return {
+                    "success": True,
+                    "platform": "tmall",
+                    "cookies_count": len(tmall_cookies),
+                    "message": f"成功获取 {len(tmall_cookies)} 个 cookies",
+                    "proxy_used": request.proxy_url or "none",
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "未能获取 cookies，可能需要手动登录",
+                    "instruction": "请在弹出的浏览器窗口中完成扫码登录",
+                }
+
+    except Exception as e:
+        logger.error(f"Tmall cookie fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# China proxy management
+CHINA_PROXY_LIST = []
+
+
+@app.get("/proxy/china/list")
+async def list_china_proxies():
+    """获取中国住宅代理列表"""
+    return {
+        "proxies": CHINA_PROXY_LIST,
+        "count": len(CHINA_PROXY_LIST),
+    }
+
+
+@app.post("/proxy/china/add")
+async def add_china_proxy(url: str, name: str = ""):
+    """添加中国住宅代理"""
+    proxy = {"url": url, "name": name or url, "enabled": True}
+    CHINA_PROXY_LIST.append(proxy)
+    proxy_pool.add_proxy(url=url, name=name)
+    return {"success": True, "proxy": proxy}
+
+
+@app.post("/proxy/china/rotate")
+async def rotate_china_proxy():
+    """轮换获取中国住宅代理"""
+    import random
+
+    if CHINA_PROXY_LIST:
+        enabled = [p for p in CHINA_PROXY_LIST if p.get("enabled", True)]
+        if enabled:
+            proxy = random.choice(enabled)
+            return {"proxy_url": proxy["url"], "name": proxy.get("name", "")}
+    return {
+        "error": "No China proxies available",
+        "setup_instruction": "Use POST /proxy/china/add to add proxies",
+    }
 
 
 @app.post("/cookies/fetch/manual")
@@ -4208,17 +4601,106 @@ async def virtual_scroll_crawl(request: VirtualScrollRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ Enhanced E-commerce Crawling Endpoint ============
+
+
+@app.post("/crawl/ecommerce/enhanced", response_model=EnhancedEcommerceResult)
+async def enhanced_ecommerce_crawl(request: EcommerceEnhancedRequest):
+    """增强版电商爬取端点 - 支持所有新参数
+    - flatten_shadow_dom: 处理 Shadow DOM
+    - cache_mode: 自定义缓存策略 (BYPASS/DEFAULT/FORCE_CACHE 等)
+    - magic: 启用 magic 模式
+    - simulate_user: 模拟用户行为
+    """
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+
+    try:
+        # 检测或获取平台
+        platform = request.platform or EcommerceCrawlStrategy.detect_platform(
+            request.url
+        )
+
+        # 获取平台配置
+        config = EcommerceCrawlStrategy.PLATFORM_CONFIGS.get(
+            platform, EcommerceCrawlStrategy.PLATFORM_CONFIGS["jd"]
+        )
+
+        # 构建增强配置
+        enhanced_config = {
+            "platform": platform,
+            "flatten_shadow_dom": request.flatten_shadow_dom,
+            "cache_mode": request.cache_mode,
+            "magic": request.magic,
+            "simulate_user": request.simulate_user,
+            "override_navigator": request.override_navigator,
+            "scroll_count": request.scroll_pages,
+        }
+
+        # Amazon 特殊处理
+        if platform == "amazon":
+            enhanced_config["cache_mode"] = "BYPASS"
+            enhanced_config["flatten_shadow_dom"] = True
+
+        # Taobao/Tmall 特殊处理
+        if platform in ["taobao", "tmall"]:
+            enhanced_config["magic"] = True
+            enhanced_config["simulate_user"] = True
+
+        # 构建 CrawlerRunConfig
+        try:
+            cache_mode = getattr(CacheMode, request.cache_mode, CacheMode.BYPASS)
+        except:
+            cache_mode = CacheMode.BYPASS
+
+        run_config = CrawlerRunConfig(
+            cache_mode=cache_mode,
+            page_timeout=request.page_timeout,
+            wait_for=request.wait_for,
+            js_code=request.js_code,
+            screenshot=request.screenshot,
+            scroll_count=request.scroll_pages,
+            magic=request.magic,
+            simulate_user=request.simulate_user,
+            override_navigator=request.override_navigator,
+            flatten_shadow_dom=request.flatten_shadow_dom,
+        )
+
+        # 执行爬取
+        result = await crawler.arun(url=request.url, config=run_config)
+
+        # 返回结果
+        return EnhancedEcommerceResult(
+            success=result.success,
+            url=result.url,
+            platform=platform,
+            markdown=result.markdown.raw_markdown if result.markdown else None,
+            html=result.html,
+            links=result.links[:100] if result.links else None,
+            images=result.media.get("images", [])[:20] if result.media else None,
+            config_used=enhanced_config,
+            flatten_shadow_dom=enhanced_config["flatten_shadow_dom"],
+            cache_mode=enhanced_config["cache_mode"],
+            magic_enabled=enhanced_config["magic"],
+            crawl_stats={"pages_crawled": request.scroll_pages, "config": "enhanced"},
+            error=result.error_message if not result.success else None,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ Session-based Crawling Endpoint ============
 
 
 class SessionCrawlRequest(BaseModel):
     """会话爬取 - 保持浏览器状态进行多步操作"""
 
-    urls: List[str]  # 按顺序爬取的URL列表
-    session_id: str  # 会话ID，用于保持状态
-    js_code: Optional[List[str]] = None  # 可选的JavaScript代码
+    urls: List[str]  # 按顺序爬取的 URL 列表
+    session_id: str  # 会话 ID，用于保持状态
+    js_code: Optional[List[str]] = None  # 可选的 JavaScript 代码
     wait_for: Optional[str] = None  # 等待条件
-    css_selector: Optional[str] = None  # CSS选择器用于提取
+    css_selector: Optional[str] = None  # CSS 选择器用于提取
     capture_console: bool = False  # 是否捕获控制台消息
 
 
@@ -4404,7 +4886,180 @@ async def extract_with_xpath(request: XPathExtractRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============ Chunking & Semantic Search Endpoints ============
+# ============ LLM-Enhanced Crawling Strategy ============
+
+
+class LLMExtractionRequest(BaseModel):
+    """LLM 驱动的提取请求"""
+
+    url: str
+    platform: Optional[str] = None
+    instruction: str = "提取页面中的商品信息，包括商品名称、价格、销量、评价、库存、图片链接、店铺信息。返回 JSON 格式。"
+    model: str = "qwen3.5:9b"
+    provider: str = "ollama"
+    extract_schema: Optional[Dict[str, Any]] = None  # Pydantic-like schema
+    max_depth: int = 1
+    retry_on_empty: bool = True
+    max_retries: int = 2
+
+
+class LLMExtractResult(BaseModel):
+    """LLM 提取结果"""
+
+    success: bool
+    url: str
+    platform: str
+    extracted_data: Optional[Dict[str, Any]] = None
+    page_type: str = "unknown"  # product, login, home, error
+    requires_login: bool = False
+    llm_analysis: Optional[Dict[str, Any]] = None
+    attempts: int = 1
+    error: Optional[str] = None
+
+
+class LLMCrawlerStrategy:
+    """LLM 驱动的爬虫策略 - 智能页面识别和数据提取"""
+
+    # 常用商品提取 Schema
+    DEFAULT_PRODUCT_SCHEMA = {
+        "name": "ecommerce_product_info",
+        "description": "电商产品信息",
+        "fields": [
+            {"name": "product_id", "type": "string", "description": "商品 ID"},
+            {"name": "title", "type": "string", "description": "商品名称"},
+            {"name": "brand", "type": "string", "description": "品牌"},
+            {"name": "price", "type": "number", "description": "价格"},
+            {"name": "original_price", "type": "number", "description": "原价"},
+            {"name": "currency", "type": "string", "description": "货币单位"},
+            {"name": "stock", "type": "number", "description": "库存"},
+            {"name": "sales", "type": "number", "description": "销量"},
+            {"name": "reviews", "type": "number", "description": "评价数"},
+            {"name": "rating", "type": "number", "description": "评分"},
+            {"name": "shop_name", "type": "string", "description": "店铺名称"},
+            {"name": "images", "type": "array", "description": "商品图片"},
+            {"name": "description", "type": "string", "description": "商品描述"},
+        ],
+    }
+
+    @classmethod
+    def extract_with_llm(
+        cls,
+        markdown: str,
+        url: str,
+        instruction: str = None,
+        schema: Dict[str, Any] = None,
+    ) -> LLMExtractResult:
+        """使用本地 LLM 提取页面信息"""
+
+        instruction = instruction or cls.DEFAULT_PRODUCT_SCHEMA["description"]
+        llm_prompt = f"""你是一个电商数据提取专家。请分析这个网页内容:
+
+URL: {url}
+页面内容: {markdown[:2000]}
+
+{instruction if instruction else "请提取页面中的所有商品信息，包括：商品名称、价格、销量、评价数、库存、店铺名称、商品图片链接。"}
+
+分析要求:
+1. 判断页面类型（商品详情/登录页/首页/错误页）
+2. 识别是否需要登录
+3. 提取可见的商品信息
+4. 如果信息不完整，说明原因
+
+请严格只返回 JSON 格式，不要包含 markdown 或其他格式。JSON 格式:
+{{
+  "success": true/false,
+  "page_type": "product|login|required|error|unknown",
+  "requires_login": true/false,
+  "platform": "taobao|tmall|jd|amazon|unknown",
+  "detected_data": {{
+    "product_id": "",
+    "title": "",
+    "price": 0,
+    "original_price": 0,
+    "currency": "CNY",
+    "sales": 0,
+    "reviews": 0,
+    "rating": 0,
+    "shop_name": "",
+    "images": [],
+    "stock": 0,
+    "description": ""
+  }},
+  "confidence": 0.0-1.0,
+  "missing_fields": [],
+  "error_message": ""
+}}"""
+
+        try:
+            import requests
+
+            # 调用 Ollama API
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            response = requests.post(
+                f"{ollama_url}/api/generate",
+                json={
+                    "model": "qwen3.5:9b",
+                    "prompt": llm_prompt,
+                    "format": "json",
+                    "stream": False,
+                    "options": {"temperature": 0.3},
+                },
+                timeout=30,
+            )
+
+            if response.status_code != 200:
+                raise Exception(f"Ollama API error: {response.status_code}")
+
+            result = response.json()
+            llm_output = result.get("response", "{}")
+
+            # 解析 LLM 返回的 JSON
+            try:
+                extracted_data = json.loads(llm_output)
+            except:
+                # 如果 LLM 返回的不是纯 JSON，尝试提取 JSON 部分
+                import re
+
+                json_match = re.search(r"\{.*\}", llm_output, re.DOTALL)
+                if json_match:
+                    extracted_data = json.loads(json_match.group(0))
+                else:
+                    extracted_data = {
+                        "success": False,
+                        "page_type": "unknown",
+                        "requires_login": True,
+                        "platform": "unknown",
+                        "error_message": "无法解析 LLM 响应",
+                    }
+
+            return LLMExtractResult(
+                success=extracted_data.get("success", False),
+                url=url,
+                platform=extracted_data.get("platform", "unknown"),
+                extracted_data=extracted_data.get("detected_data", {}),
+                page_type=extracted_data.get("page_type", "unknown"),
+                requires_login=extracted_data.get("requires_login", False),
+                llm_analysis={
+                    "confidence": extracted_data.get("confidence", 0),
+                    "model": "qwen3.5:9b",
+                    "missing_fields": extracted_data.get("missing_fields", []),
+                },
+                error=extracted_data.get("error_message")
+                if not extracted_data.get("success")
+                else None,
+                attempts=1,
+            )
+
+        except Exception as e:
+            return LLMExtractResult(
+                success=False,
+                url=url,
+                platform="unknown",
+                page_type="error",
+                requires_login=False,
+                error=f"LLM 提取失败：{str(e)}",
+                attempts=1,
+            )
 
 
 class ChunkTextRequest(BaseModel):
@@ -4420,6 +5075,71 @@ class ChunkTextRequest(BaseModel):
 class ChunkResult(BaseModel):
     chunks: List[str]
     count: int
+
+
+@app.post("/crawl/llm-extract", response_model=LLMExtractResult)
+async def llm_extract(request: LLMExtractionRequest):
+    """LLM 驱动的电商商品提取
+    - 智能页面类型识别
+    - 自动检测是否需登录
+    - 结构化数据提取
+    - 多次重试策略
+    """
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Crawler not initialized")
+
+    max_attempts = request.max_retries + 1
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            # 1. 爬取页面
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                magic=request.platform in ["taobao", "tmall"],
+                simulate_user=True,
+                override_navigator=True,
+                flatten_shadow_dom=True,
+                scroll_count=min(3, request.max_depth),
+            )
+
+            crawl_result = await crawler.arun(url=request.url, config=run_config)
+
+            if not crawl_result.markdown:
+                last_error = "页面内容为空"
+
+            # 2. 使用 LLM 分析
+            from llm_crawler_strategy import LLMCrawlerStrategy
+
+            llm_result = LLMCrawlerStrategy.extract_with_llm(
+                markdown=crawl_result.markdown.raw_markdown
+                if crawl_result.markdown
+                else "",
+                url=request.url,
+                instruction=request.instruction,
+                schema=None,
+            )
+
+            # 3. 如果需要重试，继续
+            if llm_result.requires_login and attempt < max_attempts - 1:
+                await asyncio.sleep(1)
+                continue
+
+            return llm_result
+
+        except Exception as e:
+            last_error = str(e)
+            await asyncio.sleep(1)
+
+    return LLMExtractResult(
+        success=False,
+        url=request.url,
+        platform="unknown",
+        page_type="error",
+        requires_login=False,
+        error=f"LLM 提取失败 {max_attempts} 次：{last_error}",
+        attempts=max_attempts,
+    )
 
 
 @app.post("/chunk", response_model=ChunkResult)
@@ -5186,7 +5906,18 @@ async def extract_ecommerce(request: EcommerceExtractRequest):
                         "price": ".s-item__price, .prcPrice",
                         "image": ".s-item__image-img, .img-img",
                     },
+                    "generic": {
+                        "items": ".item, .product, [itemprop='product']",
+                        "title": "[itemprop='name'], [itemprop='headline'], h1.title, h2.title, .title",
+                        "price": "[itemprop='price'], .price, .product-price, .price-value",
+                        "image": "[itemprop='image'], .product-img, .product-image, img[itemprop='image']",
+                    },
                 }
+
+                # Define logger for this function
+                import logging
+
+                logger = logging.getLogger(__name__)
 
                 platform_selectors = selectors.get(platform, selectors["generic"])
                 items = soup.select(platform_selectors.get("items", ""))
