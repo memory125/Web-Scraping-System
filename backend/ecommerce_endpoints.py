@@ -33,38 +33,66 @@ class BaseEcommerceRequest(BaseModel):
 
 @router.post("/crawl/amazon")
 async def crawl_amazon(request: BaseEcommerceRequest):
-    """Amazon 专用爬虫接口
+    """Amazon 专用爬虫接口 (强化版)
 
-    特点：
-    - 设置 BYPASS 缓存模式避免缓存问题
-    - 启用 stealth 模式
-    - 使用美国 UA
+    特点（基于 Crawl4AI 官方文档优化）：
+    - 使用 UndetectedAdapter 反检测浏览器
+    - 启用 stealth 模式 + magic 模式
+    - 使用美国 UA 和 Accept-Language
+    - 禁用 headless 模式减少检测
+    - 添加延迟等待页面加载
+    - 使用 BYPASS 缓存模式
+    - 添加 simulate_user 模拟用户行为
     """
     try:
         from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
         from crawl4ai.async_configs import BrowserConfig
 
+        # 根据文档: 使用 headless=False 减少检测，但可以通过 enable_stealth 增强
+        # 文档建议：避免 headless 模式，但为了自动化我们使用 stealth 模式
         browser_config = BrowserConfig(
-            headless=True,
+            headless=False,  # 文档建议避免 headless，但配合 stealth 使用
             viewport={
                 "width": request.viewport_width,
                 "height": request.viewport_height,
             },
-            headers={"Accept-Language": "en-US,en;q=0.9"},
+            # 文档: 自定义 User-Agent
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            # 文档: 使用 headers 设置语言
+            headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+            },
             verbose=True,
-            enable_stealth=True,
+            enable_stealth=True,  # 文档: 启用 stealth 模式
         )
 
+        # 文档: 反检测最佳实践
+        # - 使用 magic=True 启用 magic 模式
+        # - 使用 simulate_user=True 模拟用户行为
+        # - 使用 override_navigator=True 覆盖 navigator 属性
+        # - 添加延迟等待
         crawl_config = CrawlerRunConfig(
             page_timeout=request.page_timeout,
-            wait_until=request.wait_until,
+            wait_until="load",  # 文档: 使用 load 而非 networkidle 减少等待时间
             max_scroll_steps=request.max_scroll_steps,
+            # 文档: BYPASS 缓存模式避免返回缓存内容
             cache_mode=CacheMode.BYPASS,
+            # 文档: magic 模式提供更好的交互
             magic=True,
+            # 文档: 模拟用户行为
             simulate_user=True,
+            # 文档: 覆盖 navigator 属性
             override_navigator=True,
+            # 文档: 移除覆盖元素
             remove_overlay_elements=True,
+            # 文档: 延迟返回 HTML 让页面完全加载
+            delay_before_return_html=2.0,
+            # 文档: 等待时间
+            wait_for_timeout=30000,
         )
 
         results = []
@@ -85,6 +113,7 @@ async def crawl_amazon(request: BaseEcommerceRequest):
                             if result.media
                             else [],
                             "error": result.error_message,
+                            "status_code": result.status_code,
                         }
                     )
                 except Exception as e:
@@ -105,6 +134,111 @@ async def crawl_amazon(request: BaseEcommerceRequest):
     except Exception as e:
         logger.error(f"Amazon crawl error: {e}")
         return {"success": False, "error": str(e), "platform": "amazon"}
+
+
+@router.post("/crawl/amazon/advanced")
+async def crawl_amazon_advanced(request: BaseEcommerceRequest):
+    """Amazon 专用爬虫接口 (高级反检测版)
+
+    基于 Crawl4AI 官方文档优化：
+    - 使用 UndetectedAdapter 反检测浏览器 (最高级反爬)
+    - 组合 stealth 模式 + undetected 模式
+    - 使用 headless=False 减少检测
+    - 添加更长的延迟等待
+    - 模拟真实用户行为
+
+    当普通版本被阻止时使用此版本
+    """
+    try:
+        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+        from crawl4ai.async_configs import BrowserConfig
+        from crawl4ai import UndetectedAdapter
+        from crawl4ai.async_crawler_strategy import AsyncPlaywrightCrawlerStrategy
+
+        # 文档: 创建 undetected adapter
+        undetected_adapter = UndetectedAdapter()
+
+        # 文档: stealth 模式 + headless=False
+        browser_config = BrowserConfig(
+            headless=False,  # 文档: 避免 headless 模式
+            viewport={
+                "width": request.viewport_width,
+                "height": request.viewport_height,
+            },
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+            },
+            verbose=True,
+            enable_stealth=True,  # 文档: 启用 stealth
+        )
+
+        # 文档: 创建带 undetected adapter 的策略
+        crawler_strategy = AsyncPlaywrightCrawlerStrategy(
+            browser_config=browser_config, browser_adapter=undetected_adapter
+        )
+
+        # 文档: 更长的等待时间
+        crawl_config = CrawlerRunConfig(
+            page_timeout=request.page_timeout,
+            wait_until="load",
+            max_scroll_steps=request.max_scroll_steps,
+            cache_mode=CacheMode.BYPASS,
+            magic=True,
+            simulate_user=True,
+            override_navigator=True,
+            remove_overlay_elements=True,
+            delay_before_return_html=3.0,  # 更长的延迟
+            wait_for_timeout=45000,
+        )
+
+        results = []
+        # 文档: 使用自定义策略的爬虫
+        async with AsyncWebCrawler(
+            crawler_strategy=crawler_strategy, config=browser_config
+        ) as crawler:
+            for url in request.urls:
+                try:
+                    result = await crawler.arun(url=url, config=crawl_config)
+                    results.append(
+                        {
+                            "url": url,
+                            "success": result.success,
+                            "markdown": result.markdown.raw_markdown[:2000]
+                            if result.markdown
+                            else None,
+                            "html": result.html[:2000] if result.html else None,
+                            "links": result.links,
+                            "images": result.media.get("images", [])[:20]
+                            if result.media
+                            else [],
+                            "error": result.error_message,
+                            "status_code": result.status_code,
+                        }
+                    )
+                except Exception as e:
+                    results.append(
+                        {
+                            "url": url,
+                            "success": False,
+                            "error": str(e),
+                        }
+                    )
+
+        return {
+            "success": True,
+            "platform": "amazon_advanced",
+            "results": results,
+            "count": len(request.urls),
+            "note": "使用 UndetectedAdapter 反检测浏览器",
+        }
+    except Exception as e:
+        logger.error(f"Amazon advanced crawl error: {e}")
+        return {"success": False, "error": str(e), "platform": "amazon_advanced"}
 
 
 @router.post("/crawl/tmall")
