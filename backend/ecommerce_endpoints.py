@@ -901,23 +901,37 @@ async def crawl_amazon_with_hooks(request: AmazonCrawlRequest):
 
 
 class OptimizedTmallRequest(BaseModel):
-    """统一优化的天猫爬虫请求 (基于Crawl4AI官方文档深度优化)
+    """统一优化的天猫/1688爬虫请求 (基于Crawl4AI官方文档深度优化)
 
-    天猫/淘宝特点:
+    天猫/淘宝/1688特点:
     - 需要中国IP代理才能访问
     - 需要登录cookies才能查看完整内容
     - 反爬虫检测较强 (Akamai等)
     - 页面需要JavaScript渲染
     - 大量使用虚拟滚动
+    - 可能遇到验证码
 
     基于官方文档优化:
-    - 反爬虫检测与重试 (Anti-Bot & Fallback)
-    - 代理列表轮换 (Proxy & Security)
-    - Hooks生命周期管理 (Hooks & Auth)
-    - 深度挖掘 (Deep Crawling)
-    - Filter Chains & Scorers
-    - Session Management
-    - Virtual Scroll
+    1. Anti-Bot & Fallback:
+       - max_retries: 反爬重试次数
+       - proxy_config列表: 代理轮换
+       - fallback_fetch_function: 最后手段
+       - crawl_stats: 详细爬取统计
+
+    2. Undetected Browser:
+       - enable_stealth: 隐身模式
+       - headless=False: 避免被检测
+       - wait_until="load": 反爬虫建议
+
+    3. Virtual Scroll & Lazy Loading:
+       - virtual_scroll: 虚拟滚动处理
+       - wait_for_images: 等待图片加载
+       - scan_full_page: 全页面扫描
+
+    4. 进阶反检测:
+       - simulate_user: 模拟用户行为
+       - magic: 启用magic模式
+       - override_navigator: 覆盖navigator对象
     """
 
     urls: List[str] = Field(default=[], description="要爬取的URL列表")
@@ -925,22 +939,25 @@ class OptimizedTmallRequest(BaseModel):
         default="smart",
         description="模式: smart/standard/deep/stealth/undetected/best_first",
     )
-    headless: bool = Field(default=False, description="无头模式")
+    headless: bool = Field(default=False, description="无头模式(建议设为False避免检测)")
     viewport_width: int = Field(default=1920)
     viewport_height: int = Field(default=1080)
     page_timeout: int = Field(default=120000)
     max_scroll_steps: int = Field(default=10)
-    enable_stealth: bool = Field(default=True)
-    use_magic: bool = Field(default=True)
-    simulate_user: bool = Field(default=True)
-    override_navigator: bool = Field(default=True)
+    enable_stealth: bool = Field(default=True, description="隐身模式(官方文档推荐)")
+    use_magic: bool = Field(default=True, description="magic模式(模拟用户)")
+    simulate_user: bool = Field(default=True, description="模拟用户行为")
+    override_navigator: bool = Field(default=True, description="覆盖navigator对象")
     locale: str = Field(default="zh-CN")
 
     # 反爬虫配置 (官方文档: Anti-Bot & Fallback)
-    max_retries: int = Field(default=2, description="反爬重试次数")
-    proxy_list: List[str] = Field(default=[], description="代理列表(中国IP)")
+    max_retries: int = Field(default=2, description="反爬重试次数(官方文档建议:0-3)")
+    proxy_list: List[str] = Field(default=[], description="代理列表(中国IP),按顺序尝试")
     use_proxy_rotation: bool = Field(default=False, description="启用代理轮换")
-    fallback_enabled: bool = Field(default=True, description="启用回退函数")
+    fallback_enabled: bool = Field(default=True, description="启用回退函数(最后手段)")
+    use_undetected: bool = Field(
+        default=False, description="使用UndetectedBrowser(高级反检测)"
+    )
 
     # Cookies配置 (官方文档: Hooks & Auth)
     cookies: List[Dict[str, Any]] = Field(default=[], description="登录cookies")
@@ -1615,40 +1632,6 @@ async def crawl_jd(request: OptimizedTmallRequest):
         "max_scroll_steps": 15,
         "proxy_list": ["http://user:pass@gateway:port"],
         "cookies": [{"name": "cookie", "value": "xxx", "domain": ".jd.com"}]
-    }
-    ```
-    """
-    return await crawl_tmall_v2(request)
-
-
-@router.post("/crawl/alibaba")
-@router.post("/crawl/alibaba/v2")
-@router.post("/crawl/1688")
-@router.post("/crawl/1688/v2")
-async def crawl_alibaba(request: OptimizedTmallRequest):
-    """阿里巴巴/1688专用爬虫接口 (基于Crawl4AI官方文档深度优化)
-
-    阿里巴巴批发/1688特点:
-    - 需要中国IP代理才能访问
-    - 反爬虫检测较强
-    - 使用虚拟滚动加载产品列表
-    - 大量使用懒加载图片
-
-    基于官方文档的功能:
-    1. Virtual Scroll - 处理产品列表虚拟滚动
-    2. Lazy Loading - 处理懒加载图片
-    3. 反爬虫检测与重试
-    4. 代理列表轮换
-    5. Hooks生命周期管理
-
-    使用示例:
-    ```json
-    {
-        "urls": ["https://gzdefu188.1688.com/page/offerlist.htm"],
-        "mode": "smart",
-        "virtual_scroll": true,
-        "wait_for_images": true,
-        "proxy_list": ["http://user:pass@gateway:port"]
     }
     ```
     """
