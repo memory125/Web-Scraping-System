@@ -1567,69 +1567,32 @@ async def crawl_ebay_unified(request: OptimizedEbayRequest):
 
 
 @router.post("/crawl/jd")
-async def crawl_jd(request: BaseEcommerceRequest):
-    """京东专用爬虫接口"""
-    try:
-        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
-        from crawl4ai.async_configs import BrowserConfig
+@router.post("/crawl/jd/v2")
+async def crawl_jd(request: OptimizedTmallRequest):
+    """京东(JD)专用爬虫接口 (基于Crawl4AI官方文档深度优化)
 
-        browser_config = BrowserConfig(
-            headless=True,
-            viewport={
-                "width": request.viewport_width,
-                "height": request.viewport_height,
-            },
-            headers={"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            verbose=True,
-            enable_stealth=True,
-        )
+    京东特点:
+    - 需要中国IP代理才能访问
+    - 需要登录cookies才能查看完整内容
+    - 反爬虫检测较强
 
-        crawl_config = CrawlerRunConfig(
-            page_timeout=request.page_timeout,
-            wait_until=request.wait_until,
-            max_scroll_steps=request.max_scroll_steps,
-            cache_mode=CacheMode.BYPASS,
-            magic=True,
-            simulate_user=True,
-            override_navigator=True,
-            remove_overlay_elements=True,
-        )
+    基于官方文档的功能:
+    - Virtual Scroll - 处理京东的虚拟滚动产品列表
+    - 反爬虫检测与重试
+    - 代理列表轮换
+    - Hooks生命周期管理
+    - 深度挖掘支持
 
-        results = []
-        async with AsyncWebCrawler(config=browser_config) as crawler:
-            for url in request.urls:
-                try:
-                    result = await crawler.arun(url=url, config=crawl_config)
-                    results.append(
-                        {
-                            "url": url,
-                            "success": result.success,
-                            "markdown": result.markdown.raw_markdown[:2000]
-                            if result.markdown
-                            else None,
-                            "html": result.html[:2000] if result.html else None,
-                            "error": result.error_message,
-                        }
-                    )
-                except Exception as e:
-                    results.append(
-                        {
-                            "url": url,
-                            "success": False,
-                            "error": str(e),
-                        }
-                    )
-
-        return {
-            "success": True,
-            "platform": "jd",
-            "results": results,
-            "count": len(request.urls),
-        }
-    except Exception as e:
-        logger.error(f"JD crawl error: {e}")
-        return {"success": False, "error": str(e), "platform": "jd"}
+    使用示例:
+    ```json
+    {
+        "urls": ["https://mall.jd.com/index-1000000127.html"],
+        "mode": "smart",
+        "proxy_list": ["http://user:pass@gateway:port"]
+    }
+    ```
+    """
+    return await crawl_tmall_v2(request)
 
 
 @router.post("/crawl/alibaba")
