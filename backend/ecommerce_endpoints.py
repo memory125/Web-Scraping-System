@@ -1622,73 +1622,71 @@ async def crawl_jd(request: OptimizedTmallRequest):
 
 
 @router.post("/crawl/alibaba")
-async def crawl_alibaba(request: BaseEcommerceRequest):
-    """阿里国际站专用爬虫接口"""
-    try:
-        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
-        from crawl4ai.async_configs import BrowserConfig
+@router.post("/crawl/alibaba/v2")
+@router.post("/crawl/1688")
+@router.post("/crawl/1688/v2")
+async def crawl_alibaba(request: OptimizedTmallRequest):
+    """阿里巴巴/1688专用爬虫接口 (基于Crawl4AI官方文档深度优化)
 
-        browser_config = BrowserConfig(
-            headless=True,
-            viewport={
-                "width": request.viewport_width,
-                "height": request.viewport_height,
-            },
-            headers={"Accept-Language": "en-US,en;q=0.9"},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            verbose=True,
-            enable_stealth=True,
-        )
+    阿里巴巴批发/1688特点:
+    - 需要中国IP代理才能访问
+    - 反爬虫检测较强
+    - 使用虚拟滚动加载产品列表
+    - 大量使用懒加载图片
 
-        crawl_config = CrawlerRunConfig(
-            page_timeout=request.page_timeout,
-            wait_until=request.wait_until,
-            max_scroll_steps=request.max_scroll_steps,
-            cache_mode=CacheMode.BYPASS,
-            magic=True,
-            simulate_user=True,
-            override_navigator=True,
-            remove_overlay_elements=True,
-        )
+    基于官方文档的功能:
+    1. Virtual Scroll - 处理产品列表虚拟滚动
+    2. Lazy Loading - 处理懒加载图片
+    3. 反爬虫检测与重试
+    4. 代理列表轮换
+    5. Hooks生命周期管理
 
-        results = []
-        async with AsyncWebCrawler(config=browser_config) as crawler:
-            for url in request.urls:
-                try:
-                    result = await crawler.arun(url=url, config=crawl_config)
-                    results.append(
-                        {
-                            "url": url,
-                            "success": result.success,
-                            "markdown": result.markdown.raw_markdown[:2000]
-                            if result.markdown
-                            else None,
-                            "html": result.html[:2000] if result.html else None,
-                            "links": result.links,
-                            "images": result.media.get("images", [])[:20]
-                            if result.media
-                            else [],
-                            "error": result.error_message,
-                        }
-                    )
-                except Exception as e:
-                    results.append(
-                        {
-                            "url": url,
-                            "success": False,
-                            "error": str(e),
-                        }
-                    )
+    使用示例:
+    ```json
+    {
+        "urls": ["https://gzdefu188.1688.com/page/offerlist.htm"],
+        "mode": "smart",
+        "virtual_scroll": true,
+        "wait_for_images": true,
+        "proxy_list": ["http://user:pass@gateway:port"]
+    }
+    ```
+    """
+    return await crawl_tmall_v2(request)
 
-        return {
-            "success": True,
-            "platform": "alibaba",
-            "results": results,
-            "count": len(request.urls),
-        }
-    except Exception as e:
-        logger.error(f"Alibaba crawl error: {e}")
-        return {"success": False, "error": str(e), "platform": "alibaba"}
+
+@router.post("/crawl/alibaba")
+@router.post("/crawl/alibaba/v2")
+@router.post("/crawl/1688")
+@router.post("/crawl/1688/v2")
+async def crawl_alibaba(request: OptimizedTmallRequest):
+    """阿里巴巴/1688专用爬虫接口 (基于Crawl4AI官方文档深度优化)
+
+    阿里巴巴批发/1688特点:
+    - 需要中国IP代理才能访问
+    - 反爬虫检测较强
+    - 使用虚拟滚动加载产品列表
+    - 大量使用懒加载图片
+
+    基于官方文档的功能:
+    1. Virtual Scroll - 处理产品列表虚拟滚动
+    2. Lazy Loading - 处理懒加载图片
+    3. 反爬虫检测与重试
+    4. 代理列表轮换
+    5. Hooks生命周期管理
+
+    使用示例:
+    ```json
+    {
+        "urls": ["https://gzdefu188.1688.com/page/offerlist.htm"],
+        "mode": "smart",
+        "virtual_scroll": true,
+        "wait_for_images": true,
+        "proxy_list": ["http://user:pass@gateway:port"]
+    }
+    ```
+    """
+    return await crawl_tmall_v2(request)
 
 
 @router.post("/crawl/aliexpress")
